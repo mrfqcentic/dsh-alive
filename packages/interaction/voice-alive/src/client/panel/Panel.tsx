@@ -21,7 +21,9 @@ import { panelState, togglePanelMute } from './state.ts'
  * @returns the glass panel with its orb and two icon buttons.
  */
 export function Panel({ surface }: SurfaceProps): ReactElement {
-  const state = useSyncExternalStore(panelState.subscribe, panelState.get, panelState.get)
+  const subscribe = useCallback((listener: () => void) => panelState.subscribe(listener), [])
+  const read = useCallback(() => panelState.get(), [])
+  const state = useSyncExternalStore(subscribe, read, read)
   const muted = state === 'muted'
 
   // A programmatic ref focuses the panel root so Tab reaches the controls; the

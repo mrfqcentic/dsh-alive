@@ -113,7 +113,7 @@ function closeHandler(): (event: unknown) => unknown {
 }
 
 function summonChord(): () => void {
-  return electron.globalShortcut.register.mock.calls[0]![1] as () => void
+  return electron.globalShortcut.register.mock.calls[0]![1]
 }
 
 function openSurface(voice: ReturnType<typeof createVoicePanel>, surface: 'settings' | 'history'): void {

@@ -98,7 +98,7 @@ The row changes no request assembly, so no prompt segment or cache boundary depe
 <a id="known-limitations-and-deferred-work"></a>
 
 - **Empty Host namespace** — `VoiceAliveService` has no conductor tools, session binding, audio state, or engines.
-- **Placeholder settings panes** — the five tabs switch, but each pane is an honest placeholder; model, workspace, audio, shortcut, and privacy controls attach in tickets 19–21.
+- **Placeholder settings panes** — the five tabs switch, but each pane is an honest placeholder; the audio, shortcut, model, workspace, and privacy controls attach in later waves, with models, workspaces, and privacy in tickets 19–21.
 - **Fixture history** — the history window lists a fixed in-memory fixture through `createHistorySource`; the durable store replaces that factory in ticket 22.
 - **Local panel state** — the orb reads one client store ([`src/client/panel/state.ts`](src/client/panel/state.ts)) that the audio state machine drives from ticket 10.
 - **Panel route is shell-owned** — this package emits `dist/panel/` with document-relative URLs, but the Desktop protocol handler must map `/voice/*` onto it. The Web server does not serve the panel.

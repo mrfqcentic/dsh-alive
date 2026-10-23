@@ -120,11 +120,12 @@ const FIXTURE_ENTRIES: readonly HistoryEntry[] = [
 export function createHistorySource(): HistorySource {
   let entries = [...FIXTURE_ENTRIES]
   return {
-    async list(query) {
-      return filterHistory(entries, query)
+    list(query) {
+      return Promise.resolve(filterHistory(entries, query))
     },
-    async remove(id) {
+    remove(id) {
       entries = entries.filter(entry => entry.id !== id)
+      return Promise.resolve()
     },
   }
 }
