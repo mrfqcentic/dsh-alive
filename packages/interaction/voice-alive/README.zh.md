@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与浏览器面板。面板以来自自身 `dist/panel/` 的语音专用名册启动客户端内核，渲染单色 Orb 与窗口控件，并把 settings 与 history 作为由 `?surface=` 选择的界面打开。Host 在 `ELECTRON_RUN_AS_NODE` worker 中运行两个语音引擎：`createAsrEngine` 用 Whisper 或 Parakeet 转写，`createTtsEngine` 流式输出 Kokoro 分块，`createEngineSupervisor` 为每类引擎持有恰好一个模型并报告健康状态。Host 配置行注册四个 conductor 工具，用于绑定新建或恢复的会话，把每次切换写入持久化绑定，并在重启后恢复该绑定；它还安装语音策略，让回答保持可朗读的形态，并让每次切换都以工具结果为依据；它还拥有固定版本的模型目录：`createModelStore` 下载并校验阻挡语音的权重。Bundle 层把这条配置行组合到 `dsh-base` 之上。
+为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与浏览器面板。面板从自身 `dist/panel/` 启动客户端内核，渲染单色 Orb 与窗口控件，并以 `?surface=` 窗口打开 settings 与 history。Host 在 `ELECTRON_RUN_AS_NODE` worker 中运行两个引擎：`createAsrEngine` 用 Whisper 或 Parakeet 转写，`createTtsEngine` 流式输出 Kokoro，`createEngineSupervisor` 为每类引擎持有恰好一个模型。四个 conductor 工具通过持久化绑定绑定会话，配置行为已绑定会话安装语音策略，`createModelStore` 下载并校验固定版本的模型目录。Bundle 层把这条配置行组合到 `dsh-base` 之上。
 
 ## 目录
 

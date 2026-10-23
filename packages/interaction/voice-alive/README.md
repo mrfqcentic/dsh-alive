@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Give the shipped Web and Desktop profiles a voice panel Host service and a browser panel. The panel boots the client kernel with a voice-only roster from its `dist/panel/`, renders the monochrome orb and window controls, and opens settings and history as `?surface=` surfaces. The Host runs both speech engines in `ELECTRON_RUN_AS_NODE` workers: `createAsrEngine` transcribes with Whisper or Parakeet, `createTtsEngine` streams Kokoro chunks, and `createEngineSupervisor` holds one model per engine and reports health. The Host row registers four conductor tools that bind a new or resumed session, write each switch through the durable binding, and restore it on restart, installs the voice policy that keeps replies spoken-shaped and every switch tied to a tool result, and owns the pinned catalog: `createModelStore` downloads and verifies the weights that gate voice. The bundle composes the row over `dsh-base`.
+Give the shipped Web and Desktop profiles a voice panel Host service and a browser panel. The panel boots the client kernel from its `dist/panel/`, renders the monochrome orb and window controls, and opens settings and history in `?surface=` windows. The Host runs both engines in `ELECTRON_RUN_AS_NODE` workers: `createAsrEngine` transcribes with Whisper or Parakeet, `createTtsEngine` streams Kokoro, and `createEngineSupervisor` holds one model per engine. Four conductor tools bind a session through the durable binding, the row installs the voice policy for the bound Session, and `createModelStore` downloads and verifies the pinned catalog. The bundle composes the row over `dsh-base`.
 
 ## Table of Contents
 
