@@ -129,6 +129,34 @@ describe('hot-plug subscription', () => {
     expect(listener).toHaveBeenCalledTimes(1)
   })
 
+  it('drops a pending enumeration that resolves after unsubscribe', async () => {
+    const deferred = Promise.withResolvers<DeviceEntry[]>()
+    const registry = installRegistry([])
+    registry.media.enumerateDevices.mockReturnValueOnce(deferred.promise)
+    const listener = vi.fn()
+    const onError = vi.fn()
+    const stop = subscribeInputDevices(listener, onError)
+    stop()
+    deferred.resolve([{ kind: 'audioinput', deviceId: 'mic-a', label: 'Built-in', groupId: 'g' }])
+    await settle()
+    expect(listener).not.toHaveBeenCalled()
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('drops a pending enumeration failure that rejects after unsubscribe', async () => {
+    const deferred = Promise.withResolvers<DeviceEntry[]>()
+    const registry = installRegistry([])
+    registry.media.enumerateDevices.mockReturnValueOnce(deferred.promise)
+    const listener = vi.fn()
+    const onError = vi.fn()
+    const stop = subscribeInputDevices(listener, onError)
+    stop()
+    deferred.reject(new DOMException('denied', 'NotAllowedError'))
+    await settle()
+    expect(listener).not.toHaveBeenCalled()
+    expect(onError).not.toHaveBeenCalled()
+  })
+
   it('contains a throwing device listener', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     installRegistry([])

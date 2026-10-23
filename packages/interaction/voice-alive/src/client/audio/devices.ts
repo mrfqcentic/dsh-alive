@@ -116,7 +116,8 @@ export async function listInputDevices(): Promise<InputDevice[]> {
  * list untouched.
  * @param listener - receives every successfully enumerated list.
  * @param onError - receives enumeration failures; omitted failures are dropped.
- * @returns function that stops refreshing and removes the browser listener.
+ * @returns function that stops refreshing, removes the browser listener, and
+ * drops any enumeration still pending when it runs.
  * @throws CaptureError `unsupported` when the page has no media device registry.
  */
 export function subscribeInputDevices(
@@ -124,19 +125,25 @@ export function subscribeInputDevices(
   onError?: (error: CaptureError) => void,
 ): () => void {
   const media = requireMediaDevices()
+  let closed = false
   const refresh = (): void => {
     void listInputDevices().then((devices) => {
+      if (closed) return
       try {
         listener(devices)
       } catch (error) {
         console.error('voice input device listener failed', error)
       }
     }, (error: unknown) => {
+      if (closed) return
       if (onError !== undefined) onError(toCaptureError(error))
     })
   }
   const handleChange = (): void => { refresh() }
   media.addEventListener('devicechange', handleChange)
   refresh()
-  return () => { media.removeEventListener('devicechange', handleChange) }
+  return () => {
+    closed = true
+    media.removeEventListener('devicechange', handleChange)
+  }
 }
