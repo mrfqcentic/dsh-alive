@@ -12116,6 +12116,13 @@ importers:
         version: link:../../typert/protocol
 
   packages/interaction/voice-alive:
+    dependencies:
+      sherpa-onnx-node:
+        specifier: 1.13.8
+        version: 1.13.8
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~
