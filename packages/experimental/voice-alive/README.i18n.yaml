@@ -1,0 +1,43 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/voice-alive/README.md
+/:
+  en: 6270eb6842ea2bdf
+  zh: fff4a492b53e812c
+/deepseek-ai-dsh-voice-alive:
+  en: 826b6c483d6cbd60
+  zh: 2cddacdd9469feb4
+/deepseek-ai-dsh-voice-alive/summary:
+  en: a061e6ca56585646
+  zh: cb4a8f5029f35f43
+/deepseek-ai-dsh-voice-alive/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 364c80ee00a374ff
+/deepseek-ai-dsh-voice-alive/use-this-package:
+  en: 539d614ee8b5e60a
+  zh: 314107732250463d
+/deepseek-ai-dsh-voice-alive/use-this-package/when-to-choose-it:
+  en: 16dab1d21145846d
+  zh: 9f68c6d630c1630c
+/deepseek-ai-dsh-voice-alive/use-this-package/minimal-configuration:
+  en: 409a9b71c298800b
+  zh: dfbd4c576b3ab086
+/deepseek-ai-dsh-voice-alive/understand-the-implementation:
+  en: 094820ec91e71efd
+  zh: 2145dbc285462935
+/deepseek-ai-dsh-voice-alive/further-exploration:
+  en: 3b29c65fca308f64
+  zh: e1ef4909a641538a
+/deepseek-ai-dsh-voice-alive/model-experience:
+  en: bd6784dba82f9b71
+  zh: c7511748a8d8c771
+/deepseek-ai-dsh-voice-alive/model-experience/kv-cache-effect:
+  en: 9a167672320b7cd7
+  zh: 14424d8d7b005354
+/deepseek-ai-dsh-voice-alive/known-limitations-and-deferred-work:
+  en: 1476d3c779346ee3
+  zh: 186d0672bd923736
+/deepseek-ai-dsh-voice-alive/known-limitations-and-deferred-work/dev-note:
+  en: 26803f14f4a8104e
+  zh: b3e1507b4c3b0cba

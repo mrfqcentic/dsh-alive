@@ -95,6 +95,7 @@ export function buildGates(
       gates.push(libraryGate(step, step.id === 'host-src' ? ['native', ...step.needs] : step.needs, env))
     }
     gates.push(pnpmGate('web', 'Web build', ['run', 'build:web'], ['client-bundle'], env))
+    gates.push(pnpmGate('voice-panel', 'Voice panel', ['--filter', '@deepseek-ai/dsh-voice-alive', 'run', 'build:panel'], ['client-bundle'], env))
   }
   if (scope === 'typecheck') {
     for (const step of contractSteps(root, 'all')) gates.push(libraryGate(step, step.needs, env))
