@@ -1,9 +1,9 @@
 /**
  * Turn-history data seam for the history window.
  *
- * The window renders `HistorySource`; ticket 22 replaces
- * `createHistorySource` with the SQLite index and keeps this interface,
- * so the surface code does not change when rows move out of memory.
+ * The window renders `HistorySource`; ticket 22 replaces this factory's
+ * implementation with the SQLite index and keeps the interface, so the surface
+ * code does not change when rows move out of memory.
  * @module @deepseek-ai/dsh-voice-alive/client/history/source
  */
 import { filterHistory } from './filter.ts'
