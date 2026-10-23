@@ -14,7 +14,7 @@
  * @module @deepseek-ai/dsh-voice-alive/client/audio/capture
  */
 import { CaptureError, toCaptureError } from './devices.ts'
-import type { CaptureController, SpeechSegment, WordGate } from './types.ts'
+import type { CaptureController, CaptureOptions, SpeechSegment, WordGate } from './types.ts'
 import { SAMPLE_RATE, FRAME_SAMPLES, createSegmentDetector, energyWordGate } from './vad.ts'
 
 export { CaptureError } from './devices.ts'
@@ -483,11 +483,14 @@ class Capture implements CaptureController {
 
 /**
  * Create a microphone capture controller.
- * @param options - input device selection and the word gate; omitting the gate
- * uses the conservative energy and duration rule from `vad.ts`.
+ *
+ * Capture is always 16 kHz mono; a context that cannot run at that rate is
+ * resampled. Omitting the gate uses the conservative energy and duration rule
+ * from `vad.ts`.
+ * @param options - input device selection and the word gate.
  * @returns a controller that starts idle and releases every resource on stop,
  * mute, or failure.
  */
-export function createCapture(options: { deviceId?: string; gate?: WordGate } = {}): CaptureController {
+export function createCapture(options: CaptureOptions = {}): CaptureController {
   return new Capture(options.deviceId, options.gate ?? { accept: energyWordGate })
 }

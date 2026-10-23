@@ -58,12 +58,17 @@ export interface WordGate {
   accept(segment: SpeechSegment): Promise<boolean> | boolean
 }
 
-/** Options accepted by {@link import('./capture.ts').createCapture}. */
+/**
+ * Options accepted by {@link import('./capture.ts').createCapture}.
+ *
+ * Capture is always 16 kHz mono; an audio context that cannot run at that rate
+ * is resampled rather than configured.
+ */
 export interface CaptureOptions {
   /** Exact input device id; absent follows the system default input. */
   deviceId?: string
-  /** Capture rate in hertz; 16 kHz is the only supported value. */
-  sampleRate?: 16000
+  /** Decision applied to every closed segment; absent uses the energy gate. */
+  gate?: WordGate
 }
 
 /**
