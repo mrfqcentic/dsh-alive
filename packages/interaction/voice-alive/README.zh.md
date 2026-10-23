@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与专用浏览器面板。同一条双面配置行在 Host 中挂载 `ctx.voiceAlive`，并提供仅在面板文档内渲染的客户端条目。该客户端在主聊天界面保持惰性。面板文档以语音专用名册启动常规客户端内核，名册由包自身的 `dist/panel/` 提供。面板渲染单色 Orb 与其两个窗口控件；settings 与 history 作为同一文档的独立界面打开，由 `?surface=` 选择。Bundle 层把这条配置行组合到 `dsh-base` 之上。
+为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与专用浏览器面板。同一条双面配置行在 Host 中挂载 `ctx.voiceAlive`，并提供仅在面板文档内渲染的客户端条目。该客户端在主聊天界面保持惰性。面板文档以语音专用名册启动常规客户端内核，名册由包自身的 `dist/panel/` 提供。面板渲染单色 Orb 与其两个窗口控件；settings 与 history 作为同一文档的独立界面打开，由 `?surface=` 选择。Host 半边还暴露两个本地语音引擎，各自运行在包内单一 `./worker` 条目之后的 `ELECTRON_RUN_AS_NODE` 子进程中：`createAsrEngine` 用 Whisper 或 Parakeet 转写，`createTtsEngine` 从 Kokoro 流式输出按句切分的 24 kHz 单声道 WAV 分块。Bundle 层把这条配置行组合到 `dsh-base` 之上。
 
 ## 目录
 
@@ -42,6 +42,36 @@ kind: "package-reference"
 
 Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带有 `data-dsh-voice-panel` 时激活，而面板文档正是如此。
 
+### ASR 引擎
+
+包根还导出守护进程将要驱动的串行本地识别器。它启动一个 `ELECTRON_RUN_AS_NODE` 子进程，从调用方提供的目录加载且只加载一个 Whisper 或 Parakeet 模型，绝不会回退到另一个模型。
+
+```ts
+import { createAsrEngine } from '@deepseek-ai/dsh-voice-alive'
+
+const engine = createAsrEngine()
+await engine.load('whisper', '/path/to/verified/whisper-onnx')
+const result = await engine.transcribe({ id: 'turn-1', pcm: samples, sampleRate: 16000 })
+```
+
+该目录必须已包含 ONNX 权重与 `tokens.txt`；此包从不下载它们，缺失或不兼容的目录会以 `AsrEngineError` 拒绝，而不是启动另一个模型。
+
+### TTS 引擎
+
+包根还导出本地 Kokoro 合成器。它把回复切分成按句的任务，每句就绪即刻返回一个 24 kHz 单声道 16 位 WAV，并保持分块顺序。
+
+```ts
+import { createTtsEngine } from '@deepseek-ai/dsh-voice-alive'
+
+const engine = createTtsEngine()
+await engine.load('/path/to/verified/kokoro-onnx', { voice: 'af_heart' })
+await engine.speak({ id: 'turn-1', text: 'Hello there. How are you?' }, chunk => {
+  // chunk.wav is a complete WAV; playback can start before the reply finishes.
+})
+```
+
+该目录必须已包含 ONNX 模型与分词器文件；远程模型加载保持禁用，缺失的目录会以 `TtsError` 拒绝，而不是回退到另一个模型。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -54,14 +84,21 @@ Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带
 
 | 源码 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 注册为 `ctx.voiceAlive` 的 Host `VoiceAliveService` |
+| [`src/index.ts`](src/index.ts) | 注册为 `ctx.voiceAlive` 的 Host `VoiceAliveService`，以及导出的 ASR 与 TTS 接缝 |
+| [`src/engine/asr.ts`](src/engine/asr.ts) | Host ASR 引擎：启动、握手、串行队列、空闲关闭与类型化失败 |
+| [`src/engine/asr-worker.ts`](src/engine/asr-worker.ts) | ASR Worker：stdin 与 fd 3 上的 JSON 行协议、sherpa-onnx Whisper/Parakeet |
+| [`src/engine/types.ts`](src/engine/types.ts) | ASR 请求/结果/引擎契约与 worker 帧 |
+| [`src/engine/tts.ts`](src/engine/tts.ts) | Host TTS 引擎：句子切分、有序流式输出、取消与空闲关闭 |
+| [`src/engine/tts-types.ts`](src/engine/tts-types.ts) | TTS 请求/分块/引擎契约与 worker 帧 |
+| [`src/engine/tts-worker.ts`](src/engine/tts-worker.ts) | TTS Worker：Kokoro 合成与 stdout 上的 WAV 帧 |
+| [`src/engine/worker.ts`](src/engine/worker.ts) | 单一 `./worker` 分发器：校验角色并加载 ASR 或 TTS worker |
 | [`src/client/index.ts`](src/client/index.ts) | 面板文档激活判定 |
 | [`src/client/mount.tsx`](src/client/mount.tsx) | React 根挂载、按 URL 选择界面与释放 |
 | [`src/client/surfaces.ts`](src/client/surfaces.ts) | 从 `?surface=panel\|settings\|history` 解析的界面注册表 |
 | [`src/client/surfaces/`](src/client/surfaces/) | 每个界面一个组件：panel、settings、history |
 | [`src/client/orb/`](src/client/orb/) | 单色 Orb 画布、其调色板与运动数学 |
 | [`src/client/panel/`](src/client/panel/) | 面板 Orb 状态存储、shell 桥接与窗口控件 |
-| [`src/client/audio/`](src/client/audio/) | 16 kHz 麦克风采集、VAD 分段、词门禁与输入设备枚举；按序 WAV 播放、输出设备路由、输出电平与回声参考节点 |
+| [`src/client/audio/`](src/client/audio/) | 16 kHz 麦克风采集、VAD 分段、词门禁与输入设备枚举；按序 WAV 播放、输出设备路由、输出电平与回声参考节点；串联采集、播放与静音的五态音频状态机 |
 | [`src/client/settings/`](src/client/settings/) | 五标签页 settings 框架及其占位面板 |
 | [`src/client/history/`](src/client/history/) | 历史列表、搜索、删除流程与 `HistorySource` 接缝 |
 | [`src/client/styles/`](src/client/styles/) | 从 `voice-plugin/design/` 复制的设计系统样式表 |
@@ -98,10 +135,11 @@ Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **空的 Host 命名空间** — `VoiceAliveService` 尚无 conductor 工具、会话绑定、音频状态或引擎。
+- **引擎尚未接入守护进程** — `VoiceAliveService` 仍无 conductor 工具、会话绑定或音频状态；`createAsrEngine` 与 `createTtsEngine` 已导出，供工单 13 的监督器拥有。
+- **不捆绑权重** — 两个引擎都读取调用方提供的模型目录；下载并校验 Whisper、Parakeet 或 Kokoro 权重属于工单 19 的职责，因此在该目录存在之前 `load` 会拒绝。
 - **占位 settings 面板** — 五个标签页可以切换，但每个面板都是如实的占位实现；音频、快捷键、模型、工作区与隐私控件在后续波次中接入，其中模型、工作区与隐私属于工单 19–21。
 - **Fixture 历史** — 历史窗口通过 `createHistorySource` 列出一份固定的内存 Fixture；持久化存储将在工单 22 中替换该工厂。
-- **本地面板状态** — Orb 读取一个客户端存储（[`src/client/panel/state.ts`](src/client/panel/state.ts)），音频状态机从工单 10 起驱动它。
+- **本地面板状态** — Orb 读取一个客户端存储（[`src/client/panel/state.ts`](src/client/panel/state.ts)），由音频状态机驱动。
 - **基于能量的词门禁** — 默认词门禁只按分段时长与电平判断，因此音乐、稳态音调或持续轰鸣可能通过。它衡量的是闭合分段而非单个词：560 ms 分段中的 300 ms 词可以通过，而 150 ms 的词低于 450 ms 的下限，会被丢弃。工单 11 将通过同一个注入的 `WordGate` 换成基于转写的词门禁。
 - **未验证真实麦克风** — 采集、Worklet 加载、重采样与热插拔都在伪 Web Audio 图上测试。真实硬件、浏览器权限提示与 macOS TCC 路径仍需人工测试。
 - **面板路由由 shell 拥有** — 此包输出带文档相对 URL 的 `dist/panel/`，但 Desktop 协议处理器必须把 `/voice/*` 映射到它。Web 服务器不提供面板。

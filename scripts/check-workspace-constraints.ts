@@ -262,8 +262,10 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh-headless': ['lib/json-stream-*.js'],
   // The voice panel document and its copied client bundles are built assets
   // outside the TypeScript emit; the Desktop shell serves them from the
-  // installed package under `dsh-app://shell/voice/`.
-  '@deepseek-ai/dsh-voice-alive': ['dist/panel'],
+  // installed package under `dsh-app://shell/voice/`. The single `./worker`
+  // dispatcher launches two role bundles resolved relative to it, so those
+  // sit outside the export paths the publication list derives from.
+  '@deepseek-ai/dsh-voice-alive': ['dist/panel', 'lib/asr-worker.js', 'lib/tts-worker.js'],
 }
 
 function sameStringList(actual: readonly string[] | undefined, expected: readonly string[]): boolean {

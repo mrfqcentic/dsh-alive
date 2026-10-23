@@ -8,6 +8,29 @@
 
 import { Service, type Context } from '@deepseek-ai/cordis'
 
+export { AsrEngineError, createAsrEngine } from './engine/asr.ts'
+export type {
+  AsrEngine,
+  AsrEngineErrorCode,
+  AsrEngineOptions,
+  AsrModelId,
+  AsrRequest,
+  AsrResult,
+  AsrStatus,
+} from './engine/types.ts'
+export { createTtsEngine } from './engine/tts.ts'
+export { TtsError } from './engine/tts-types.ts'
+export type {
+  TtsChunk,
+  TtsEngine,
+  TtsErrorCode,
+  TtsRequest,
+  TtsSpawnFn,
+  TtsSpawnOptions,
+  TtsStatus,
+  TtsWorkerProcess,
+} from './engine/tts-types.ts'
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     /** The voice panel daemon mounted by this row. */
