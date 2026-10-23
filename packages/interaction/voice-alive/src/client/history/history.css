@@ -1,0 +1,227 @@
+/* History window. Monochrome glass: every value comes from the token layer;
+   the shell window is transparent, so the pane floats on the document. */
+
+.voice-history-root {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--s-4);
+}
+
+.voice-history-window {
+  width: min(680px, 100%);
+  height: min(620px, calc(100vh - var(--s-7)));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.voice-history-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-3);
+  padding: var(--s-5) var(--s-5) var(--s-3);
+}
+
+.voice-history-heading { flex: 1 1 auto; min-width: 0; }
+
+.voice-history-title {
+  font-size: var(--fs-xl);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+}
+
+.voice-history-search {
+  flex: 0 1 240px;
+  min-width: 140px;
+}
+
+.voice-history-search .input {
+  height: var(--control-sm);
+  padding-left: var(--s-8);
+  font-size: var(--fs-sm);
+}
+
+.voice-history-search .adorn {
+  left: var(--s-3);
+  display: grid;
+  place-items: center;
+}
+
+.voice-history-search-icon {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.voice-history-close {
+  flex: 0 0 auto;
+  width: var(--control-sm);
+  padding: 0;
+  font-size: var(--fs-md);
+  line-height: 1;
+}
+
+.voice-history-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: 0 var(--s-5) var(--s-2);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.voice-history-count { font-family: var(--mono); }
+.voice-history-retention { text-align: right; }
+
+.voice-history-delete-error {
+  flex: 0 0 auto;
+  margin: 0 var(--s-5) var(--s-2);
+  font-size: var(--fs-xs);
+}
+
+.voice-history-list,
+.voice-history-loading,
+.voice-history-state {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0 var(--s-5) var(--s-5);
+}
+
+.voice-history-list {
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+}
+
+.voice-history-list .history-row {
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  border-bottom: 1px solid var(--line);
+  align-items: start;
+}
+
+.voice-history-list .history-row:last-child { border-bottom: none; }
+.voice-history-list .history-row:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+
+.voice-history-list .history-row.is-selected {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.voice-history-time { padding-top: 2px; }
+
+.voice-history-body { min-width: 0; }
+
+.voice-history-text {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-base);
+  line-height: var(--lh-snug);
+  overflow-wrap: anywhere;
+}
+
+.voice-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.voice-history-dot {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+
+.voice-history-transcript {
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+}
+
+.voice-history-reply {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  overflow-wrap: anywhere;
+}
+
+.voice-history-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-1);
+}
+
+.voice-history-actions .btn {
+  height: var(--control-sm);
+  padding: 0 var(--s-2);
+  font-size: var(--fs-xs);
+}
+
+.voice-history-loading {
+  display: grid;
+  align-content: start;
+  gap: var(--s-4);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.voice-history-skeleton {
+  display: grid;
+  grid-template-columns: 44px 1fr 96px;
+  gap: var(--s-3);
+  align-items: center;
+}
+
+.voice-history-skeleton-time { height: 10px; }
+.voice-history-skeleton-text { height: 12px; }
+.voice-history-skeleton-action { height: 20px; }
+
+.voice-history-state {
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+}
+
+.voice-history-state .empty { width: 100%; }
+
+.voice-history-confirm {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: grid;
+  place-items: center;
+  padding: var(--s-4);
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(var(--blur-sm));
+  -webkit-backdrop-filter: blur(var(--blur-sm));
+}
+
+.voice-history-dialog { width: min(360px, 100%); }
+
+@media (max-width: 560px) {
+  .voice-history-head {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .voice-history-heading { flex-basis: 100%; }
+  .voice-history-search { flex: 1 1 auto; }
+}

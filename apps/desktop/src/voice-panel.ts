@@ -52,6 +52,10 @@ const SURFACE_CONTENT_SIZE = { width: 520, height: 640 } as const
 const VOICE_PANEL_CHANNEL = 'dsh-voice:panel-state'
 /** Channel the panel or a surface renderer uses to open a surface window. */
 const VOICE_SURFACE_CHANNEL = 'dsh-voice:open-surface'
+/** Channel a renderer uses to close its own window: surfaces close, the panel hides. */
+const VOICE_CLOSE_CHANNEL = 'dsh-voice:close'
+/** Channel the shell uses to tell the visible panel that the summon chord was pressed. */
+const VOICE_TOGGLE_MUTE_CHANNEL = 'dsh-voice:toggle-mute'
 /** Position file under Electron's `userData`, beside the shell's other device preferences. */
 const POSITION_FILE = 'voice-panel.json'
 /** Delay that merges a drag's repeated `moved` events into one write. */
@@ -87,11 +91,22 @@ export interface VoicePanelApi {
    * @returns a promise that resolves once the shell has handled the request.
    */
   openSurface(surface: VoiceSurfaceId): Promise<void>
+  /**
+   * Close this window. A surface window closes; the panel hides instead of being destroyed.
+   * @returns a promise that resolves once the shell has handled the request.
+   */
+  close(): Promise<void>
+  /**
+   * Observe the summon chord while the panel is visible. The chord toggles mute and never hides.
+   * @param listener - called once per chord press that toggles mute.
+   * @returns function that stops observing.
+   */
+  onToggleMute(listener: () => void): () => void
 }
 
 /** Shell-owned controls of the single panel window and its surface windows. */
 export interface VoicePanel {
-  /** Show and focus the panel, or hide it when it is already visible. */
+  /** Show and focus the panel while hidden; while visible, ask the renderer to toggle mute. */
   toggle(): void
   /** Hide the panel without quitting; the Dock, tray, and primary window stay as they are. */
   hide(): void
@@ -332,8 +347,16 @@ export function createVoicePanel(userData: string, isQuitting: () => boolean): V
     window.focus()
   }
 
+  /** Tell the visible panel's renderer that the chord toggled mute; a destroyed window gets nothing. */
+  const notifyToggleMute = (): void => {
+    if (disposed || window.isDestroyed() || window.webContents.isDestroyed()) return
+    window.webContents.send(VOICE_TOGGLE_MUTE_CHANNEL)
+  }
+
   const toggle = (): void => {
-    if (window.isVisible()) hide()
+    if (disposed || window.isDestroyed()) return
+    // The chord mutes; Escape hides. A hidden panel is summoned by the same chord.
+    if (window.isVisible()) notifyToggleMute()
     else show()
   }
 
@@ -377,13 +400,8 @@ export function createVoicePanel(userData: string, isQuitting: () => boolean): V
     surfaceWindow.webContents.on('will-navigate', (event, target) => {
       if (target !== url) event.preventDefault()
     })
-    // Escape closes the surface even while its document is missing or its renderer never boots.
-    surfaceWindow.webContents.on('before-input-event', (event, input) => {
-      if (input.type === 'keyDown' && input.key === 'Escape') {
-        event.preventDefault()
-        closeSurface(surface)
-      }
-    })
+    // The surface renderer owns Escape: history cancels the delete dialog, clears search, then
+    // asks this shell to close the window through `window.dshVoicePanel.close()`.
     surfaceWindow.on('closed', () => {
       if (surfaces.get(surface) === surfaceWindow) surfaces.delete(surface)
     })
@@ -465,6 +483,21 @@ export function createVoicePanel(userData: string, isQuitting: () => boolean): V
     if (!isVoiceSurfaceId(surface)) throw new Error('desktop voice panel: rejected unknown surface')
     openSurface(surface)
   })
+  ipcMain.handle(VOICE_CLOSE_CHANNEL, (event: IpcMainInvokeEvent) => {
+    if (disposed || !isOwnedFrame(event)) {
+      throw new Error('desktop voice panel: rejected close request from an unowned frame')
+    }
+    if (event.sender === window.webContents) {
+      // Closing the panel hides it; a renderer never destroys the window that keeps the app alive.
+      hide()
+      return
+    }
+    for (const [surface, surfaceWindow] of surfaces) {
+      if (surfaceWindow.webContents !== event.sender) continue
+      closeSurface(surface)
+      return
+    }
+  })
   screen.on('display-removed', keepOnScreen)
   screen.on('display-metrics-changed', keepOnScreen)
 
@@ -482,6 +515,7 @@ export function createVoicePanel(userData: string, isQuitting: () => boolean): V
     if (shortcutRegistered) globalShortcut.unregister(VOICE_PANEL_ACCELERATOR)
     ipcMain.removeHandler(VOICE_PANEL_CHANNEL)
     ipcMain.removeHandler(VOICE_SURFACE_CHANNEL)
+    ipcMain.removeHandler(VOICE_CLOSE_CHANNEL)
     for (const surfaceWindow of surfaces.values()) {
       if (!surfaceWindow.isDestroyed()) surfaceWindow.destroy()
     }

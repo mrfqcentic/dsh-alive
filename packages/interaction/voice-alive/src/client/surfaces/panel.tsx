@@ -1,20 +1,17 @@
 /**
- * Panel surface placeholder. Ticket 05 replaces this file with the orb and
- * panel chrome; the export name and prop contract stay the same.
+ * Panel surface. Ticket 05 renders the orb, the two shell controls, and the
+ * drag regions; the export name and prop contract stay the same.
  * @module @deepseek-ai/dsh-voice-alive/client/surfaces/panel
  */
 import type { ReactElement } from 'react'
+import { Panel } from '../panel/Panel.tsx'
 import type { SurfaceProps } from '../surfaces.ts'
 
 /**
- * Render the panel surface placeholder.
+ * Render the panel surface.
  * @param props - the surface id selected by the registry.
- * @returns a monochrome placeholder naming the surface.
+ * @returns the panel with its orb and icon controls.
  */
 export function PanelSurface({ surface }: SurfaceProps): ReactElement {
-  return (
-    <main className="card" data-voice-surface={surface} data-voice-surface-stub="">
-      <span className="eyebrow">{surface}</span>
-    </main>
-  )
+  return <Panel surface={surface} />
 }
