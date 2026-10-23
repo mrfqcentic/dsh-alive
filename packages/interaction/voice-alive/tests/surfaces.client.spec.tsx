@@ -51,10 +51,17 @@ it('maps every surface id to a distinct component', () => {
   expect(new Set(components).size).toBe(SURFACE_IDS.length)
 })
 
-it.each(SURFACE_IDS)('renders the %s placeholder naming its surface', async (surface) => {
+it.each(['panel', 'settings'] as const)('renders the %s placeholder naming its surface', async (surface) => {
   const host = await renderSurface(surface)
   const placeholder = host.querySelector('[data-voice-surface-stub]')
   expect(placeholder).not.toBeNull()
   expect(placeholder?.getAttribute('data-voice-surface')).toBe(surface)
   expect(placeholder?.textContent).toContain(surface)
+})
+
+it('renders the history window for the history surface', async () => {
+  const host = await renderSurface('history')
+  expect(host.querySelector('[data-voice-surface="history"]')).not.toBeNull()
+  expect(host.querySelector('[data-voice-surface-stub]')).toBeNull()
+  expect(host.querySelector('.voice-history-window')).not.toBeNull()
 })
