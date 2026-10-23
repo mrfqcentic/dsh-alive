@@ -2,8 +2,8 @@
  * Models pane: the local model catalog with its per-entry state and the
  * readiness the voice layer is blocked on.
  *
- * The pane owns presentation only. Catalog data, downloads, verification, and
- * removal live in the Host model store and arrive through
+ * The pane owns presentation only. Catalog data, downloads, verification,
+ * removal, and activation live in the Host model store and arrive through
  * {@link ModelCatalogSource}, so every state the pane can render is a state the
  * store actually reported.
  * @module @deepseek-ai/dsh-voice-alive/client/settings/panes/models
@@ -91,12 +91,23 @@ function progressPercent(row: ModelRowView): number {
 }
 
 /**
+ * Whether readiness uses one row for its kind.
+ * @param row - catalog row.
+ * @param readiness - readiness the store reported.
+ * @returns true for the recognizer or synthesizer readiness selected.
+ */
+function isActive(row: ModelRowView, readiness: ModelReadinessView): boolean {
+  return row.kind === 'asr' ? readiness.asr === row.id : readiness.tts === row.id
+}
+
+/**
  * Render the actions one row state offers.
- * @param props - catalog row and the source its actions address.
+ * @param props - catalog row, whether readiness uses it, and the source its actions address.
  * @returns the row's buttons, possibly none.
  */
-function RowActions({ row, source }: {
+function RowActions({ row, active, source }: {
   readonly row: ModelRowView
+  readonly active: boolean
   readonly source: ModelCatalogSource
 }): ReactElement | null {
   if (row.state === 'verifying') return null
@@ -112,6 +123,13 @@ function RowActions({ row, source }: {
   if (row.state === 'ready') {
     return (
       <div className={css.actions}>
+        {active
+          ? null
+          : (
+            <button type="button" className="btn btn--sm" onClick={() => { void source.activate(row.id) }}>
+              {copy.models.activate}
+            </button>
+          )}
         <button type="button" className="btn btn--sm btn--ghost" onClick={() => { void source.remove(row.id) }}>
           {copy.models.remove}
         </button>
@@ -136,11 +154,12 @@ function RowActions({ row, source }: {
 
 /**
  * Render one catalog row with its tags, size, languages, state, and actions.
- * @param props - catalog row and the source its actions address.
+ * @param props - catalog row, whether readiness uses it, and the source its actions address.
  * @returns the list item.
  */
-function ModelRow({ row, source }: {
+function ModelRow({ row, active, source }: {
   readonly row: ModelRowView
+  readonly active: boolean
   readonly source: ModelCatalogSource
 }): ReactElement {
   const downloading = row.state === 'downloading'
@@ -160,6 +179,7 @@ function ModelRow({ row, source }: {
       <div className={css.modelTags}>
         <span className="badge">{row.required ? copy.models.requiredTag : copy.models.alternativeTag}</span>
         <span className="badge">{row.kind === 'asr' ? copy.models.asrTag : copy.models.ttsTag}</span>
+        {active ? <span className="badge">{copy.models.activeTag}</span> : null}
       </div>
       <dl className={css.modelMeta}>
         <div>
@@ -191,7 +211,7 @@ function ModelRow({ row, source }: {
         )
         : null}
       {row.failure === null ? null : <p className={css.errorText}>{failureText(row.failure)}</p>}
-      <RowActions row={row} source={source} />
+      <RowActions row={row} active={active} source={source} />
     </li>
   )
 }
@@ -225,7 +245,14 @@ export function ModelsPane({ source = modelCatalogSource }: ModelsPaneProps = {}
           ? <p className={css.foot}>{copy.models.loading}</p>
           : (
             <ul className={css.modelList}>
-              {snapshot.rows.map(row => <ModelRow key={row.id} row={row} source={source} />)}
+              {snapshot.rows.map(row => (
+                <ModelRow
+                  key={row.id}
+                  row={row}
+                  active={isActive(row, snapshot.readiness)}
+                  source={source}
+                />
+              ))}
             </ul>
           )}
       <p className={css.foot}>{copy.models.foot}</p>

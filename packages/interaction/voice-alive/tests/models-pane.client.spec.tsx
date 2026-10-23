@@ -31,7 +31,7 @@ function row(overrides: Partial<ModelRowView> = {}): ModelRowView {
 
 /** @param overrides - snapshot fields to replace. @returns one valid snapshot. */
 function snapshot(overrides: Partial<ModelSnapshot> = {}): ModelSnapshot {
-  return { rows: [row()], readiness: { ready: false, failure: null }, ...overrides }
+  return { rows: [row()], readiness: { ready: false, asr: null, tts: null, failure: null }, ...overrides }
 }
 
 /** Recording catalog source the pane renders in tests. */
@@ -64,6 +64,7 @@ function fakeSource(initial: ModelSnapshot, supported = true): FakeSource {
       download: async (id) => { calls.push(`download:${id}`) },
       cancel: (id) => { calls.push(`cancel:${id}`) },
       remove: async (id) => { calls.push(`remove:${id}`) },
+      activate: async (id) => { calls.push(`activate:${id}`) },
     },
     publish(next) {
       current = next
@@ -158,7 +159,7 @@ it('shows an indeterminate bar while verifying and offers no action', () => {
 it('marks a ready row with a check mark and removes it', () => {
   const fake = fakeSource(snapshot({
     rows: [row({ state: 'ready', receivedBytes: 100_000_000 })],
-    readiness: { ready: true, failure: null },
+    readiness: { ready: true, asr: 'whisper-base', tts: 'kokoro', failure: null },
   }))
   render(<ModelsPane source={fake.source} />)
   const element = rowElement('Kokoro test')
@@ -198,6 +199,26 @@ it('retries a failed row and shows the host message for an unknown code', () => 
   expect(fake.calls).toEqual(['download:kokoro', 'remove:kokoro'])
 })
 
+it('offers an installed alternative for use and marks the entry readiness uses', () => {
+  const fake = fakeSource(snapshot({
+    rows: [
+      row({ id: 'whisper-base', kind: 'asr', name: 'Whisper test', state: 'ready', receivedBytes: 100_000_000 }),
+      row({ id: 'parakeet-v3', kind: 'asr', name: 'Parakeet test', state: 'ready', receivedBytes: 100_000_000 }),
+    ],
+    readiness: { ready: false, asr: 'whisper-base', tts: null, failure: { code: 'tts-missing', message: 'missing' } },
+  }))
+  render(<ModelsPane source={fake.source} />)
+
+  const whisper = rowElement('Whisper test')
+  expect(within(whisper).getByText(copy.models.activeTag)).toBeTruthy()
+  expect(within(whisper).queryByRole('button', { name: copy.models.activate })).toBeNull()
+
+  const parakeet = rowElement('Parakeet test')
+  expect(within(parakeet).queryByText(copy.models.activeTag)).toBeNull()
+  fireEvent.click(within(parakeet).getByRole('button', { name: copy.models.activate }))
+  expect(fake.calls).toEqual(['activate:parakeet-v3'])
+})
+
 it('re-renders when the host pushes a new snapshot', () => {
   const fake = fakeSource(snapshot())
   render(<ModelsPane source={fake.source} />)
@@ -205,7 +226,7 @@ it('re-renders when the host pushes a new snapshot', () => {
   act(() => {
     fake.publish(snapshot({
       rows: [row({ state: 'ready', receivedBytes: 100_000_000 })],
-      readiness: { ready: true, failure: null },
+      readiness: { ready: true, asr: 'whisper-base', tts: 'kokoro', failure: null },
     }))
   })
   expect(screen.getByText(copy.models.badgeReady)).toBeTruthy()
