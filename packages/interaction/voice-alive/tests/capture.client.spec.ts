@@ -76,6 +76,8 @@ class FakeContext {
   static throwNext = 0
   static throwAlways = false
   static withoutWorklet = false
+  static startSuspended = false
+  static resumeFails = false
   static reportedRate: number | undefined
   static addModule: (url: string) => Promise<void> = async () => {}
 
@@ -84,13 +86,18 @@ class FakeContext {
   readonly gain = new FakeGain()
   readonly sampleRate: number
   readonly audioWorklet: { addModule: ReturnType<typeof vi.fn> } | undefined
-  state = 'running'
+  state: string
+  readonly resume = vi.fn(async () => {
+    if (FakeContext.resumeFails) throw new Error('autoplay policy refused resume')
+    this.state = 'running'
+  })
   readonly close = vi.fn(async () => { this.state = 'closed' })
 
   constructor(options?: { sampleRate?: number }) {
     FakeContext.constructed += 1
     if (FakeContext.throwAlways || FakeContext.constructed <= FakeContext.throwNext) throw new Error('rate unsupported')
     this.sampleRate = FakeContext.reportedRate ?? options?.sampleRate ?? 48000
+    this.state = FakeContext.startSuspended ? 'suspended' : 'running'
     this.audioWorklet = FakeContext.withoutWorklet
       ? undefined
       : { addModule: vi.fn((url: string) => FakeContext.addModule(url)) }
@@ -134,6 +141,8 @@ function resetFakes(): void {
   FakeContext.throwNext = 0
   FakeContext.throwAlways = false
   FakeContext.withoutWorklet = false
+  FakeContext.startSuspended = false
+  FakeContext.resumeFails = false
   FakeContext.reportedRate = undefined
   FakeContext.addModule = async () => {}
   FakeWorkletNode.instances = []
@@ -365,6 +374,15 @@ describe('acquisition', () => {
     expect((secondAudio?.audio as MediaTrackConstraints).deviceId).toEqual({ exact: 'mic-b' })
     expect(second.env.getUserMedia).toHaveBeenCalledTimes(1)
     second.controller.stop()
+  })
+
+  it('resumes a suspended audio context before reporting running', async () => {
+    FakeContext.startSuspended = true
+    const session = await openSession()
+    expect(session.controller.state).toBe('running')
+    expect(session.context.resume).toHaveBeenCalledTimes(1)
+    expect(session.context.state).toBe('running')
+    session.controller.stop()
   })
 
   it('is idempotent while running and ignores a concurrent start', async () => {
@@ -706,6 +724,22 @@ describe('failures', () => {
     controller.stop()
     await tick()
     expect(env.track.stopped).toBe(true)
+  })
+
+  it('reports a refused context resume as unsupported and releases the graph', async () => {
+    FakeContext.startSuspended = true
+    FakeContext.resumeFails = true
+    const env = installEnvironment()
+    const controller = createCapture()
+    const errors: CaptureError[] = []
+    controller.onError((error) => { errors.push(error) })
+    await controller.start()
+    expect(errors[0]?.kind).toBe('unsupported')
+    expect(errors[0]?.cause).toBeInstanceOf(Error)
+    expect(controller.state).toBe('error')
+    expect(env.track.stopped).toBe(true)
+    expect(FakeContext.instances[0]?.state).toBe('closed')
+    expect(FakeContext.instances[0]?.resume).toHaveBeenCalledTimes(1)
   })
 
   it('reports a track that ends by itself and releases the graph', async () => {

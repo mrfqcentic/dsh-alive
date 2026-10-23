@@ -252,6 +252,15 @@ async function openRuntime(
     source.connect(tap.node)
     tap.node.connect(sink)
     sink.connect(context.destination)
+    if (context.state === 'suspended') {
+      try {
+        // A context created outside a gesture may start suspended; without a
+        // successful resume the graph never renders a frame.
+        await context.resume()
+      } catch (error) {
+        throw new CaptureError('unsupported', error)
+      }
+    }
     const tracks = new AbortController()
     const audioContext = context
     for (const track of stream.getTracks()) {
