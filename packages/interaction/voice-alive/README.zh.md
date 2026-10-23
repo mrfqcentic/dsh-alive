@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与浏览器面板。面板以来自自身 `dist/panel/` 的语音专用名册启动客户端内核，渲染 Orb 与窗口控件，并把 settings 与 history 作为由 `?surface=` 选择的界面打开。Host 在 `ELECTRON_RUN_AS_NODE` worker 中运行两个语音引擎：`createAsrEngine` 用 Whisper 或 Parakeet 转写，`createTtsEngine` 流式输出 Kokoro 分块，`createEngineSupervisor` 为每类引擎持有恰好一个模型并报告健康状态。配置行注册四个 conductor 工具，用于绑定并恢复会话；它还拥有固定版本的模型目录：`createModelStore` 下载并校验阻挡语音的权重。
+为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与浏览器面板。面板以来自自身 `dist/panel/` 的语音专用名册启动客户端内核，渲染单色 Orb 与窗口控件，并把 settings 与 history 作为由 `?surface=` 选择的界面打开。Host 在 `ELECTRON_RUN_AS_NODE` worker 中运行两个语音引擎：`createAsrEngine` 用 Whisper 或 Parakeet 转写，`createTtsEngine` 流式输出 Kokoro 分块，`createEngineSupervisor` 为每类引擎持有恰好一个模型并报告健康状态。Host 配置行注册四个 conductor 工具，用于绑定新建或恢复的会话，把每次切换写入持久化绑定，并在重启后恢复该绑定；它还拥有固定版本的模型目录：`createModelStore` 下载并校验阻挡语音的权重。Bundle 层把这条配置行组合到 `dsh-base` 之上。
 
 ## 目录
 
@@ -44,13 +44,15 @@ Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带
 
 ### Conductor 工具
 
-Host 配置行在 `ctx.tools` 上注册四个普通工具。`voice_list_workspaces` 报告每个工作区的 id、标题、路径与会话数。`voice_open_workspace` 把面板绑定到工作区中最近一个未归档会话，或新建一个；`voice_new_session` 新建并绑定一个全新会话；`voice_resume_session` 绑定指定会话或最近的会话。每个绑定工具按精确标题、目录路径或路径末段解析工作区；名称只部分匹配或对应多个工作区时返回候选，而不是自行选择。失败是类型化且明确的：未知工作区、缺少会话、已归档会话与 subagent 会话各自返回一个错误码，且不改变绑定。
+Host 配置行在 `ctx.tools` 上注册四个普通工具。`voice_list_workspaces` 报告每个工作区的 id、标题、路径与会话数。`voice_open_workspace` 把面板绑定到工作区中最近一个未归档会话，或新建一个；`voice_new_session` 新建并绑定一个全新会话；`voice_resume_session` 绑定指定会话或最近的会话。每个绑定工具按精确标题、目录路径或路径末段解析工作区；名称只部分匹配或对应多个工作区时返回候选，而不是自行选择。失败是类型化且明确的：未知工作区、缺少会话与 subagent 会话各自返回一个错误码，且不改变绑定；已归档会话则会被恢复，而不是报错。
 
-conductor 通过 `VoiceBindingTarget` 接收端写入每一次完成的绑定；最后一次被接受的绑定可从 `ctx.voiceConductor.currentBinding` 读取。
+三个绑定工具共用一个解析流程。未知或有歧义的工作区在任何会话查询之前就报告；`new` 总是新建会话；`resume` 继续最新的存活会话——`voice_open_workspace` 在无会话时新建，`voice_resume_session` 则报告 `SESSION_NOT_FOUND`。已归档会话会恢复为同一工作区中最新的存活会话，或新建一个，结果会指明被替换的归档会话。
+
+配置行把 `ctx.voiceAlive.binding` 安装到 `VoiceBindingTarget` 接收端，因此一次完成的路由只产生一次持久化写入：工具报告的会话与工作区 id 就是存储记录与历史界面读取的 id。最后一次被接受的绑定可从 `ctx.voiceConductor.currentBinding` 读取。
 
 ### 会话绑定
 
-`ctx.voiceAlive.binding` 拥有面板跟随的唯一会话。Host 启动时，`ensure()` 会在工作区注册与日志仍然存在时恢复已存储的会话；否则它会在 `~/.dsh/voice/workspace` 创建名为 `Voice` 的 Audio 工作区并在其中创建一个会话，然后记录这次切换。conductor 通过 `bind()` 更换所跟随的会话；`unbind()` 丢弃绑定，`restore()` 只报告已存储的配对，不创建也不写入。
+`ctx.voiceAlive.binding` 拥有面板跟随的唯一会话。Host 启动时，`ensure()` 会在工作区注册与日志仍然存在时恢复已存储的会话；否则它会在 `~/.dsh/voice/workspace` 创建名为 `Voice` 的 Audio 工作区并在其中创建一个会话，然后记录这次切换。conductor 通过 `bind()` 更换所跟随的会话；配置行把同一个绑定交给 conductor，因此切换与存储记录是同一次写入。`unbind()` 丢弃绑定，`restore()` 只报告已存储的配对，不创建也不写入。
 
 该记录位于 `voice_binding` 存储域（`$DSH_HOME/storages/voice_binding/binding/current.json`），保存 `sessionId`、`workspaceId` 与 `updatedAt`。损坏、不可读或不符合 schema 的记录会按不存在读取；启动期间的存储失败会让内存中的绑定继续可用，而不会让激活失败。所有写入都在同一条链上执行，因此并发的 `bind()` 与 `ensure()` 调用不会让记录交错。
 
@@ -136,7 +138,8 @@ await configureSupervisor(store, supervisor)
 | 源码 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | 注册为 `ctx.voiceAlive` 的 Host `VoiceAliveService`，以及导出的 ASR、TTS、监督器与绑定入口 |
-| [`src/conductor/tools.ts`](src/conductor/tools.ts) | Host conductor 服务：四个工作区与会话工具、它们的类型化结果，以及绑定接收端 |
+| [`src/conductor/routing.ts`](src/conductor/routing.ts) | 三个绑定工具共用的路由解析、归档恢复与持久化绑定写入 |
+| [`src/conductor/tools.ts`](src/conductor/tools.ts) | Host conductor 服务：四个工具定义、它们的 schema，以及绑定接收端 |
 | [`src/binding/`](src/binding/) | 持久化的会话绑定、启动恢复与 Audio 工作区回退 |
 | [`src/engine/asr.ts`](src/engine/asr.ts) | Host ASR 引擎：启动、握手、串行队列、空闲关闭与类型化失败 |
 | [`src/engine/asr-worker.ts`](src/engine/asr-worker.ts) | ASR Worker：stdin 与 fd 3 上的 JSON 行协议、sherpa-onnx Whisper/Parakeet |
@@ -201,7 +204,6 @@ await configureSupervisor(store, supervisor)
 <a id="known-limitations-and-deferred-work"></a>
 
 - **监督器尚未接入守护进程** — `VoiceAliveService` 仍无音频状态；`createEngineSupervisor` 已拥有两个导出的引擎，音频界面将在后续工单中接入。
-- **conductor 绑定尚未持久化** — conductor 通过 `VoiceBindingTarget` 记录绑定，但配置行尚未把自己的持久化绑定存储安装到该接收端，因此 `ctx.voiceConductor.currentBinding` 会在重启后丢失。
 - **不捆绑权重** — 包内不含任何模型字节。Models 面板把 Whisper、Parakeet 与 Kokoro 权重下载并校验到 profile 中；两个引擎仍加载调用方提供的目录，目录缺失时拒绝加载。
 - **四个占位 settings 面板** — 音频、快捷键与工作区仍是如实的占位实现；Models 面板呈现模型存储的目录状态，隐私面板陈述出站、磁盘位置、保留期限与开关事实，不提供无法改变状态的控制。
 - **Fixture 历史** — 历史窗口通过 `createHistorySource` 列出一份固定的内存 Fixture；持久化存储将在工单 22 中替换该工厂。

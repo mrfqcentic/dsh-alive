@@ -2,7 +2,8 @@
  * Voice panel host row. The daemon lives inside the application's Host process
  * and dies with it: no companion service and no second profile. The row mounts
  * the service namespace and its conductor child; the session binding installs
- * here, and the audio state machine and inference engines attach through it.
+ * here, the conductor commits its switches through it, and the audio state
+ * machine and inference engines attach through it.
  * @module @deepseek-ai/dsh-voice-alive
  */
 
@@ -195,10 +196,17 @@ export class VoiceAliveService extends Service {
     return this.modelStore
   }
 
-  /** Install the binding and restore the stored session without failing activation on it. */
+  /** Install the binding, hand it to the conductor, and restore without failing activation on it. */
   protected async [Service.init](): Promise<void> {
     const binding = createVoiceBinding(createVoiceBindingDeps(this.ctx))
     this.voiceBinding = binding
+    // A conductor switch must land in the same record history reads, so the
+    // child's sink is this binding rather than its in-memory default.
+    this.ctx.inject(['voiceConductor'], (child) => {
+      child.voiceConductor.setBinding({
+        bind: (sessionId, workspaceId) => binding.bind(sessionId, workspaceId),
+      })
+    })
     try {
       await binding.ensure()
     } catch (error: unknown) {
