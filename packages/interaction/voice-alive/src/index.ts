@@ -30,6 +30,17 @@ export type {
   TtsStatus,
   TtsWorkerProcess,
 } from './engine/tts-types.ts'
+export { createEngineSupervisor, SupervisorError } from './engine/supervisor.ts'
+export type {
+  EngineFailureCode,
+  EngineHealth,
+  EngineHealthStatus,
+  EngineName,
+  EngineSupervisor,
+  ModelSelection,
+  SupervisorErrorCode,
+  SupervisorOptions,
+} from './engine/supervisor.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

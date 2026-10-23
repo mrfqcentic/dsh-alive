@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Give the shipped Web and Desktop profiles a voice panel Host service and a dedicated browser panel. The same dual-face row mounts `ctx.voiceAlive` in the Host and a client entry that renders only inside the panel document. The client stays inert in the main chat surface. The panel document boots the ordinary client kernel with a voice-only roster served from the package's own `dist/panel/`. The panel renders the monochrome orb and its two window controls; settings and history open as separate surfaces of the same document, which `?surface=` selects. The Host face also exposes both local speech engines, each in its own `ELECTRON_RUN_AS_NODE` child behind the package's single `./worker` entry: `createAsrEngine` transcribes with Whisper or Parakeet, and `createTtsEngine` streams sentence-sized 24 kHz mono WAV chunks from Kokoro. The bundle layer composes the row over `dsh-base`.
+Give the shipped Web and Desktop profiles a voice panel Host service and a dedicated browser panel. The same dual-face row mounts `ctx.voiceAlive` in the Host and a client entry that renders only inside the panel document. The client stays inert in the main chat surface. The panel document boots the ordinary client kernel with a voice-only roster served from the package's own `dist/panel/`. The panel renders the monochrome orb and its two window controls; settings and history open as separate surfaces of the same document, which `?surface=` selects. The Host face also exposes both local speech engines, each in its own `ELECTRON_RUN_AS_NODE` child behind the package's single `./worker` entry: `createAsrEngine` transcribes with Whisper or Parakeet, and `createTtsEngine` streams sentence-sized 24 kHz mono WAV chunks from Kokoro. The `createEngineSupervisor` export holds one model per engine, serializes each engine's swaps and jobs on its own lane, and reports health for both. The bundle layer composes the row over `dsh-base`.
 
 ## Table of Contents
 
@@ -51,7 +51,7 @@ import { createAsrEngine } from '@deepseek-ai/dsh-voice-alive'
 
 const engine = createAsrEngine()
 await engine.load('whisper', '/path/to/verified/whisper-onnx')
-const result = await engine.transcribe({ id: 'turn-1', pcm: samples, sampleRate: 16000 })
+const result = await engine.transcribe({ id: 'turn-1', pcm: new Int16Array(16000), sampleRate: 16000 })
 ```
 
 The directory must already contain the ONNX weights and `tokens.txt`; this package never downloads them, and a missing or incompatible directory rejects with an `AsrEngineError` instead of starting another model.
@@ -72,6 +72,27 @@ await engine.speak({ id: 'turn-1', text: 'Hello there. How are you?' }, chunk =>
 
 The directory must already contain the ONNX model and tokenizer files; remote model loading stays disabled, and a missing directory rejects with a `TtsError` instead of falling back to another model.
 
+### Engine supervisor
+
+The package root also exports the supervisor the daemon will drive. It owns one recognizer and one synthesizer together with their selected models, serializes each engine's model swaps and jobs on that engine's own lane, and reports health for both.
+
+```ts
+import { createEngineSupervisor } from '@deepseek-ai/dsh-voice-alive'
+
+const supervisor = createEngineSupervisor()
+await supervisor.configure({
+  asr: { id: 'whisper', directory: '/path/to/verified/whisper-onnx' },
+  tts: { directory: '/path/to/verified/kokoro-onnx', voice: 'af_heart' },
+})
+const transcript = await supervisor.transcribe({ id: 'turn-1', pcm: new Int16Array(16000), sampleRate: 16000 })
+await supervisor.speak({ id: 'reply-1', text: 'Hello there.' }, chunk => { /* play chunk.wav */ })
+supervisor.cancelSpeech()
+const { asr, tts } = supervisor.health
+await supervisor.shutdown()
+```
+
+`configure` swaps model by model: an engine that fails to load ends explicitly unloaded with status `error` instead of keeping the previous model, while the other engine keeps serving. Each engine has its own bounded waiting queue, so a full transcription queue never delays speech. `health` reports `status`, `lastErrorCode`, `lastSuccessAt`, and `restarts`; `restart('asr' | 'tts')` reloads one engine from its applied selection. A crashed worker is contained to its engine and respawns on the next job, and `shutdown` is idempotent.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -84,13 +105,14 @@ The panel is served as a static document on the shell origin, so no Host request
 
 | Source | Responsibility |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Host `VoiceAliveService` registered as `ctx.voiceAlive`, plus the exported ASR and TTS seams |
+| [`src/index.ts`](src/index.ts) | Host `VoiceAliveService` registered as `ctx.voiceAlive`, plus the exported ASR, TTS, and supervisor entry points |
 | [`src/engine/asr.ts`](src/engine/asr.ts) | Host ASR engine: spawn, handshake, serial queue, idle shutdown, typed failures |
 | [`src/engine/asr-worker.ts`](src/engine/asr-worker.ts) | ASR worker: JSON-line protocol over stdin and fd 3, sherpa-onnx Whisper/Parakeet |
 | [`src/engine/types.ts`](src/engine/types.ts) | ASR request/result/engine contract and the worker frames |
 | [`src/engine/tts.ts`](src/engine/tts.ts) | Host TTS engine: sentence splitting, ordered streaming, cancellation, idle shutdown |
 | [`src/engine/tts-types.ts`](src/engine/tts-types.ts) | TTS request/chunk/engine contract and the worker frames |
 | [`src/engine/tts-worker.ts`](src/engine/tts-worker.ts) | TTS worker: Kokoro synthesis and WAV framing over stdout |
+| [`src/engine/supervisor.ts`](src/engine/supervisor.ts) | Engine supervisor: model selection, per-engine lanes and queues, health, restart, crash isolation, shutdown |
 | [`src/engine/worker.ts`](src/engine/worker.ts) | Single `./worker` dispatcher that validates the role and loads the ASR or TTS worker |
 | [`src/client/index.ts`](src/client/index.ts) | Panel-document activation gate |
 | [`src/client/mount.tsx`](src/client/mount.tsx) | React root mount, URL-selected surface, and disposal |
@@ -135,7 +157,7 @@ The row changes no request assembly, so no prompt segment or cache boundary depe
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Engines not wired to the daemon** — `VoiceAliveService` still has no conductor tools, session binding, or audio state; `createAsrEngine` and `createTtsEngine` are exported for the supervisor in ticket 13 to own.
+- **Supervisor not wired to the daemon** — `VoiceAliveService` still has no conductor tools, session binding, or audio state; `createEngineSupervisor` owns both exported engines, and the conductor and audio surfaces attach in later tickets.
 - **No bundled weights** — both engines read a model directory supplied by their caller; downloading and verifying Whisper, Parakeet, or Kokoro weights is ticket 19's job, so `load` rejects until that directory exists.
 - **Placeholder settings panes** — the five tabs switch, but each pane is an honest placeholder; the audio, shortcut, model, workspace, and privacy controls attach in later waves, with models, workspaces, and privacy in tickets 19–21.
 - **Fixture history** — the history window lists a fixed in-memory fixture through `createHistorySource`; the durable store replaces that factory in ticket 22.
