@@ -1,9 +1,10 @@
 /**
  * Voice panel host row. The daemon lives inside the application's Host process
  * and dies with it: no companion service and no second profile. The row mounts
- * the service namespace and its conductor child; the session binding installs
- * here, the conductor commits its switches through it, and the audio state
- * machine and inference engines attach through it.
+ * the service namespace and its conductor child; the session binding and the
+ * voice policy section install here, the conductor commits its switches
+ * through the binding, and the audio state machine and inference engines attach
+ * through it.
  * @module @deepseek-ai/dsh-voice-alive
  */
 
@@ -19,6 +20,7 @@ import { createVoiceBindingDeps } from './binding/harness.ts'
 import { createVoiceBinding } from './binding/index.ts'
 import type { VoiceBinding } from './binding/types.ts'
 import { VoiceConductor } from './conductor/tools.ts'
+import { installVoiceInstructions, loadVoiceInstructions } from './instructions.ts'
 import { ModelStoreError, createModelStore, registerModelRoutes, voiceModelsRoot } from './models/host/index.ts'
 import type { ModelStore } from './models/host/index.ts'
 
@@ -126,9 +128,10 @@ declare module '@deepseek-ai/cordis' {
 /**
  * Host service owned by the voice bundle row.
  *
- * It owns the panel's session binding for its lifetime and mounts its conductor
- * child, so the history store and the conductor read one namespace per panel
- * rather than process-global state. The audio state machine and inference
+ * It owns the panel's session binding for its lifetime, mounts its conductor
+ * child, and contributes the voice policy to the bound Session's prompt, so the
+ * history store, the conductor, and the instructions read one namespace per
+ * panel rather than process-global state. The audio state machine and inference
  * engines attach to this namespace as their tickets land.
  */
 export class VoiceAliveService extends Service {
@@ -196,8 +199,15 @@ export class VoiceAliveService extends Service {
     return this.modelStore
   }
 
-  /** Install the binding, hand it to the conductor, and restore without failing activation on it. */
+  /** Install the binding, hand it to the conductor, restore the stored Session, and contribute the voice policy. */
   protected async [Service.init](): Promise<void> {
+    const instructions = await loadVoiceInstructions()
+    this.ctx.inject(['systemPrompt'], (scope) => {
+      installVoiceInstructions(scope, {
+        instructions,
+        boundSessionId: () => this.boundSessionId(),
+      })
+    })
     const binding = createVoiceBinding(createVoiceBindingDeps(this.ctx))
     this.voiceBinding = binding
     // A conductor switch must land in the same record history reads, so the
@@ -212,6 +222,17 @@ export class VoiceAliveService extends Service {
     } catch (error: unknown) {
       this.ctx.logger.warn(`voice binding: startup restore failed: ${String(error)}`)
     }
+  }
+
+  /**
+   * The Session the panel follows. A completed conductor switch is the live
+   * target; until one happens, the startup restore owns it.
+   * @returns the bound Session id, or null while nothing is bound.
+   */
+  private boundSessionId(): string | null {
+    return this.ctx.get('voiceConductor')?.currentBinding?.sessionId
+      ?? this.voiceBinding?.sessionId
+      ?? null
   }
 }
 

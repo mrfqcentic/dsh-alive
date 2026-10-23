@@ -25,7 +25,13 @@
       "path": "../../client/connection/tsconfig.host.json"
     },
     {
+      "path": "../../core/agent"
+    },
+    {
       "path": "../../core/session"
+    },
+    {
+      "path": "../../core/system-prompt"
     },
     {
       "path": "../../core/tools"
