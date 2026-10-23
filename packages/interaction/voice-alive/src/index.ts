@@ -6,8 +6,24 @@
  * @module @deepseek-ai/dsh-voice-alive
  */
 
-import { Service, type Context } from '@deepseek-ai/cordis'
+import { Service, type Context, type Fiber } from '@deepseek-ai/cordis'
+import { VoiceConductor } from './conductor/tools.ts'
 
+export {
+  CONDUCTOR_ERROR_CODES,
+  VoiceConductor,
+} from './conductor/tools.ts'
+export type {
+  ConductorBindingResult,
+  ConductorBoundResult,
+  ConductorCandidatesResult,
+  ConductorErrorCode,
+  ConductorErrorResult,
+  ConductorSessionFact,
+  ConductorWorkspaceFact,
+  ConductorWorkspaceList,
+  VoiceBindingTarget,
+} from './conductor/tools.ts'
 export { AsrEngineError, createAsrEngine } from './engine/asr.ts'
 export type {
   AsrEngine,
@@ -46,12 +62,16 @@ declare module '@deepseek-ai/cordis' {
  * per panel rather than process-global state.
  */
 export class VoiceAliveService extends Service {
+  /** The conductor child's activation; awaits the four tools' registration. */
+  readonly conductor: Fiber & PromiseLike<Fiber>
+
   /**
-   * Register the service as `ctx.voiceAlive`.
+   * Register the service as `ctx.voiceAlive` and mount its conductor tools.
    * @param ctx - Host plugin context that owns the service lifetime.
    */
   constructor(ctx: Context) {
     super(ctx, 'voiceAlive')
+    this.conductor = ctx.plugin(VoiceConductor)
   }
 }
 
