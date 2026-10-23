@@ -14,6 +14,7 @@ const artifactGraph = {
   'client-src': ['desktop-bundle'],
   'client-bundle': ['client-src'],
   'web': ['client-bundle'],
+  'voice-panel': ['client-bundle'],
 }
 
 function graph(gates: ReturnType<typeof buildGates>): Record<string, string[] | undefined> {
