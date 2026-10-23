@@ -8,7 +8,7 @@
 
 import { Service, type Context } from '@deepseek-ai/cordis'
 
-export { createTtsEngine, TTS_READY_TIMEOUT_MS } from './engine/tts.ts'
+export { createTtsEngine } from './engine/tts.ts'
 export { TtsError } from './engine/tts-types.ts'
 export type {
   TtsChunk,
