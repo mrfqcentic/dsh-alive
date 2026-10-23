@@ -81,6 +81,8 @@ export interface CaptureController {
    * Acquire the selected input and begin segmenting speech.
    *
    * Idempotent while `running` and while a previous call is still acquiring.
+   * A `stop()` or mute during acquisition discards that acquisition, so a
+   * later `start()` or unmute acquires again instead of being dropped.
    * Failures are reported to {@link CaptureController.onError} and leave the
    * controller in `error`; this promise does not reject for them.
    */

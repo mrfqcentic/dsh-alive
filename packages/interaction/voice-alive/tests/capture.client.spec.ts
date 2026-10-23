@@ -743,6 +743,72 @@ describe('cancellation', () => {
     expect(FakeContext.instances[0]?.state).toBe('closed')
   })
 
+  it('restarts acquisition when mute and unmute arrive during the permission prompt', async () => {
+    const first = Promise.withResolvers<FakeStream>()
+    const second = Promise.withResolvers<FakeStream>()
+    const pending = [first, second]
+    let calls = 0
+    installEnvironment(() => {
+      const next = pending[calls]
+      calls += 1
+      if (next === undefined) throw new Error('unexpected extra acquisition')
+      return next.promise
+    })
+    const firstTrack = new FakeTrack()
+    const secondTrack = new FakeTrack()
+    const controller = createCapture()
+
+    const started = controller.start()
+    controller.setMuted(true)
+    controller.setMuted(false)
+    expect(controller.state).toBe('running')
+
+    first.resolve(new FakeStream([firstTrack]))
+    second.resolve(new FakeStream([secondTrack]))
+    await started
+    expect(controller.state).toBe('running')
+    expect(calls).toBe(2)
+    expect(firstTrack.stopped).toBe(true)
+    expect(secondTrack.stopped).toBe(false)
+    expect(FakeContext.instances).toHaveLength(2)
+    expect(FakeContext.instances[0]?.state).toBe('closed')
+    expect(FakeContext.instances[1]?.state).toBe('running')
+    expect(FakeWorkletNode.instances[0]?.port.onmessage).toBeNull()
+    expect(FakeWorkletNode.instances[1]?.port.onmessage).not.toBeNull()
+    controller.stop()
+  })
+
+  it('restarts acquisition when start is called again during the permission prompt', async () => {
+    const first = Promise.withResolvers<FakeStream>()
+    const second = Promise.withResolvers<FakeStream>()
+    const pending = [first, second]
+    let calls = 0
+    installEnvironment(() => {
+      const next = pending[calls]
+      calls += 1
+      if (next === undefined) throw new Error('unexpected extra acquisition')
+      return next.promise
+    })
+    const firstTrack = new FakeTrack()
+    const secondTrack = new FakeTrack()
+    const controller = createCapture()
+
+    const firstStart = controller.start()
+    controller.stop()
+    const secondStart = controller.start()
+
+    first.resolve(new FakeStream([firstTrack]))
+    second.resolve(new FakeStream([secondTrack]))
+    await Promise.all([firstStart, secondStart])
+    expect(controller.state).toBe('running')
+    expect(calls).toBe(2)
+    expect(firstTrack.stopped).toBe(true)
+    expect(secondTrack.stopped).toBe(false)
+    expect(FakeContext.instances[0]?.state).toBe('closed')
+    expect(FakeContext.instances[1]?.state).toBe('running')
+    controller.stop()
+  })
+
   it('ignores a rejection that arrives after stop', async () => {
     const deferred = Promise.withResolvers<FakeStream>()
     installEnvironment(() => deferred.promise)

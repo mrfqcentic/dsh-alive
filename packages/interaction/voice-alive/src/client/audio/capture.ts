@@ -300,7 +300,7 @@ class Capture implements CaptureController {
   private readonly gate: WordGate
   private readonly deviceId: string | undefined
   private generation = 0
-  private starting = false
+  private runner: Promise<void> | undefined
   private wasRunning = false
   private delivery: Promise<void> = Promise.resolve()
 
@@ -318,27 +318,9 @@ class Capture implements CaptureController {
   }
 
   async start(): Promise<void> {
-    if (this.starting || this.current === 'running') return
-    this.starting = true
+    if (this.current === 'running' && this.runtime !== undefined) return
     this.current = 'running'
-    const token = this.generation + 1
-    this.generation = token
-    try {
-      const runtime = await openRuntime(
-        this.deviceId,
-        (frame) => { this.receive(frame, token) },
-        () => { this.fail(new CaptureError('no-device')) },
-      )
-      if (token !== this.generation) {
-        await disposeRuntime(runtime)
-        return
-      }
-      this.runtime = runtime
-    } catch (error) {
-      if (token === this.generation) this.fail(toCaptureError(error))
-    } finally {
-      this.starting = false
-    }
+    await this.acquire()
   }
 
   stop(): void {
@@ -372,6 +354,54 @@ class Capture implements CaptureController {
   onError(listener: (error: CaptureError) => void): () => void {
     this.errors.add(listener)
     return () => { this.errors.delete(listener) }
+  }
+
+  /**
+   * Join or begin the acquisition loop.
+   *
+   * A stop or mute during a pending acquisition invalidates its token instead
+   * of cancelling the loop, so the loop disposes the stale graph and acquires
+   * again whenever the controller still wants to run.
+   * @returns after an acquisition matching the current generation is live, or
+   * after the loop finds that the controller no longer wants to run.
+   */
+  private acquire(): Promise<void> {
+    if (this.runner !== undefined) return this.runner
+    const runner = this.run()
+    this.runner = runner
+    return runner
+  }
+
+  /**
+   * Acquire until a live graph matches the current generation.
+   * @returns after the loop settles.
+   */
+  private async run(): Promise<void> {
+    try {
+      while (this.current === 'running' && this.runtime === undefined) {
+        const token = this.generation + 1
+        this.generation = token
+        try {
+          const runtime = await openRuntime(
+            this.deviceId,
+            (frame) => { this.receive(frame, token) },
+            () => { this.fail(new CaptureError('no-device')) },
+          )
+          if (token !== this.generation) {
+            await disposeRuntime(runtime)
+            continue
+          }
+          this.runtime = runtime
+        } catch (error) {
+          // A stale failure belongs to an acquisition that stop, mute, or a
+          // new start already discarded; the next iteration serves the new state.
+          if (token === this.generation) this.fail(toCaptureError(error))
+        }
+      }
+    } finally {
+      // Cleared before the promise settles so a later start begins a new loop.
+      this.runner = undefined
+    }
   }
 
   /**
