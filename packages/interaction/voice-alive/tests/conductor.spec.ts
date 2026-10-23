@@ -498,19 +498,16 @@ describe('resuming a session', () => {
     expectUnbound(harness)
   })
 
-  it('reports an archived session without binding', async () => {
+  it('recovers an archived session by binding the newest live one', async () => {
     const harness = await mount({
-      workspaces: [workspace('ws-voice', 'Voice', '/tmp/voice', ['archived'])],
-      summaries: [summary('archived', 1, { title: 'Archived' })],
+      workspaces: [workspace('ws-voice', 'Voice', '/tmp/voice', ['archived', 'live'])],
+      summaries: [summary('archived', 1, { title: 'Archived' }), summary('live', 2, { title: 'Live' })],
       archived: ['archived'],
     })
     const value = await run(harness.ctx, 'voice_resume_session', { workspace: 'Voice', session_id: 'archived' })
-    expect(value).toMatchObject({
-      status: 'error',
-      code: 'SESSION_ARCHIVED',
-      message: '"Archived" (archived) is archived; unarchive it or open another session.',
-    })
-    expectUnbound(harness)
+    expect(value).toMatchObject({ status: 'bound', created: false, session: { sessionId: 'live' } })
+    expect(value.message).toContain('because "Archived" (archived) is archived')
+    expect(harness.conductor.currentBinding).toEqual({ sessionId: 'live', workspaceId: 'ws-voice' })
   })
 
   it('refuses a subagent session as a permission failure', async () => {
@@ -572,6 +569,21 @@ describe('binding failures', () => {
     expectUnbound(harness)
   })
 
+  it('keeps the previous binding when a later write fails', async () => {
+    const harness = await mount({
+      workspaces: [workspace('ws-voice', 'Voice', '/tmp/voice', ['a', 'b'])],
+      summaries: [summary('a', 1, { title: 'A' }), summary('b', 2, { title: 'B' })],
+    })
+    harness.conductor.setBinding({ bind: async () => {} })
+    await run(harness.ctx, 'voice_resume_session', { workspace: 'Voice', session_id: 'a' })
+    harness.conductor.setBinding({ bind: async () => { throw new Error('storage offline') } })
+
+    const message = await fail(harness.ctx, 'voice_resume_session', { workspace: 'Voice', session_id: 'b' })
+
+    expect(message).toContain('storage offline')
+    expect(harness.conductor.currentBinding).toEqual({ sessionId: 'a', workspaceId: 'ws-voice' })
+  })
+
   it('installs a durable sink and still reports the processed binding', async () => {
     const harness = await mount({
       workspaces: [workspace('ws-voice', 'Voice', '/tmp/voice', ['a'])],
@@ -607,7 +619,6 @@ it('publishes the stable failure-code vocabulary', () => {
   expect(CONDUCTOR_ERROR_CODES).toEqual([
     'WORKSPACE_NOT_FOUND',
     'SESSION_NOT_FOUND',
-    'SESSION_ARCHIVED',
     'PERMISSION_DENIED',
   ])
 })

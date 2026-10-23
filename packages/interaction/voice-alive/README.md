@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Give the shipped Web and Desktop profiles a voice panel Host service and a dedicated browser panel. The panel boots the client kernel with a voice-only roster from its `dist/panel/`, renders the monochrome orb and window controls, and opens settings and history as `?surface=` surfaces. The Host runs both speech engines in `ELECTRON_RUN_AS_NODE` workers: `createAsrEngine` transcribes with Whisper or Parakeet, `createTtsEngine` streams Kokoro chunks, and `createEngineSupervisor` holds one model per engine and reports health. The Host row registers four conductor tools that bind a new or resumed session and restore it on restart. The bundle composes the row over `dsh-base`.
+Give the shipped Web and Desktop profiles a voice panel Host service and a browser panel. The panel boots the client kernel from its `dist/panel/`, renders the monochrome orb and window controls, and opens settings and history in `?surface=` windows. The Host runs both engines in `ELECTRON_RUN_AS_NODE` workers: `createAsrEngine` transcribes with Whisper or Parakeet, `createTtsEngine` streams Kokoro, and `createEngineSupervisor` holds one model per engine. Four conductor tools bind a session through the durable binding, the row installs the voice policy for the bound Session, and `createModelStore` downloads and verifies the pinned catalog. The bundle composes the row over `dsh-base`.
 
 ## Table of Contents
 
@@ -44,13 +44,21 @@ The Host half registers `ctx.voiceAlive`. The browser half activates only when t
 
 ### Conductor tools
 
-The Host row registers four ordinary tools on `ctx.tools`. `voice_list_workspaces` reports each workspace's id, title, path, and session count. `voice_open_workspace` binds the panel to the most recent unarchived session in a workspace or creates one, `voice_new_session` creates and binds a fresh session, and `voice_resume_session` binds a named or the most recent session. Each binding tool resolves a workspace by exact title, directory path, or final path segment and returns candidates for a partial or shared name instead of choosing one. Failures are typed and explicit: an unknown workspace, a missing session, an archived session, and a subagent session each report their own code without changing the binding.
+The Host row registers four ordinary tools on `ctx.tools`. `voice_list_workspaces` reports each workspace's id, title, path, and session count. `voice_open_workspace` binds the panel to the most recent unarchived session in a workspace or creates one, `voice_new_session` creates and binds a fresh session, and `voice_resume_session` binds a named or the most recent session. Each binding tool resolves a workspace by exact title, directory path, or final path segment and returns candidates for a partial or shared name instead of choosing one. Failures are typed and explicit: an unknown workspace, a missing session, and a subagent session each report their own code without changing the binding; an archived session recovers instead of failing.
 
-The conductor writes each completed binding through the `VoiceBindingTarget` sink; the last accepted binding is readable as `ctx.voiceConductor.currentBinding`.
+The three binding tools share one resolver. An unknown or ambiguous workspace reports before any session lookup, `new` always creates, and `resume` continues the newest live session — creating one for `voice_open_workspace` and reporting `SESSION_NOT_FOUND` for `voice_resume_session`. An archived session recovers to the newest live session in the same workspace, or a new one, and the result names the archived session it replaced.
+
+The host row installs `ctx.voiceAlive.binding` on the `VoiceBindingTarget` sink, so a completed route is one durable write: the session and workspace ids the tool reports are the ids the stored record and the history surfaces read. The last accepted binding is readable as `ctx.voiceConductor.currentBinding`.
+
+### Voice instructions
+
+[`instructions.md`](instructions.md) is the policy the Host row installs as the `voice:policy` prompt section. It states that the panel is a remote control for one Session, requires one or two spoken sentences with no lists, code, or Markdown, and names the four conductor tools with the arguments each one takes: list workspaces before guessing one, pass an explicit `mode` to `voice_open_workspace`, start a fresh Session with `voice_new_session`, and continue one with `voice_resume_session`. Ambiguous names are answered by asking which candidate; a failed tool is reported instead of a claimed switch. Session ids, titles, and paths come from tool results, and the Audio workspace is the default home.
+
+The section renders only while the assembled Agent is the bound Session, so a deployment that also serves the chat surface keeps its ordinary prompt. A missing or empty `instructions.md` fails the row's activation instead of serving a voice panel with no policy.
 
 ### Session binding
 
-`ctx.voiceAlive.binding` owns the one Session the panel follows. On host start, `ensure()` restores the stored Session when its workspace registration and its log still exist; otherwise it creates the Audio workspace at `~/.dsh/voice/workspace` (titled `Voice`) and a Session in it, then records the switch. The conductor changes the followed Session with `bind()`; `unbind()` drops it and `restore()` reports the stored pair without creating or writing anything.
+`ctx.voiceAlive.binding` owns the one Session the panel follows. On host start, `ensure()` restores the stored Session when its workspace registration and its log still exist; otherwise it creates the Audio workspace at `~/.dsh/voice/workspace` (titled `Voice`) and a Session in it, then records the switch. The conductor changes the followed Session with `bind()`; the row hands that same binding to the conductor, so a switch and the stored record are one write. `unbind()` drops it and `restore()` reports the stored pair without creating or writing anything.
 
 The record lives in the `voice_binding` storage domain (`$DSH_HOME/storages/voice_binding/binding/current.json`). It stores `sessionId`, `workspaceId`, and `updatedAt`. A corrupt, unreadable, or schema-invalid record reads as absent, and a storage failure during startup leaves the in-memory binding usable instead of failing activation. All writes run on one chain, so concurrent `bind()` and `ensure()` calls cannot interleave the record.
 
@@ -105,6 +113,24 @@ await supervisor.shutdown()
 
 `configure` swaps model by model: an engine that fails to load ends explicitly unloaded with status `error` instead of keeping the previous model, while the other engine keeps serving. Each engine has its own bounded waiting queue, so a full transcription queue never delays speech. `health` reports `status`, `lastErrorCode`, `lastSuccessAt`, and `restarts`; `restart('asr' | 'tts')` reloads one engine from its applied selection. A crashed worker is contained to its engine and respawns on the next job, and `shutdown` is idempotent.
 
+### Model store
+
+`ctx.voiceAlive.models` is the profile's model store. It reads the pinned catalog in [`src/models/catalog.ts`](src/models/catalog.ts), downloads each file into a staging directory, verifies the pinned byte count and SHA-256, and renames the whole directory into place only when every file matches. A retry resumes its `.part` files; a checksum mismatch deletes them instead of resuming bytes that are already wrong.
+
+```ts
+import { configureSupervisor, createEngineSupervisor, createModelStore, voiceModelsRoot } from '@deepseek-ai/dsh-voice-alive'
+
+const supervisor = createEngineSupervisor()
+const store = createModelStore({ root: voiceModelsRoot('/home/you/.dsh') })
+await store.initialize()
+await store.download('kokoro')
+await configureSupervisor(store, supervisor)
+```
+
+`selection()` returns null until Kokoro and one recognizer are verified, and `configureSupervisor` refuses before the supervisor loads anything, so voice cannot start on a partial install. `activate('whisper-base' | 'parakeet-v3')` chooses the recognizer: a chosen model that is not installed blocks readiness instead of running the other one. Only Apple Silicon is supported; a host on another platform reports `unsupported-platform` without downloading.
+
+The row serves this store to the Models pane through three exact Connection Fetch routes: `GET /api/voice.models` returns the current rows and readiness and starts the store's one-time verification, `GET /api/voice.models.events` streams one snapshot per store change, and `POST /api/voice.models.action` applies `download`, `cancel`, `remove`, or `activate`. The panel document is served from the shell origin, which the Desktop protocol handler never forwards to the Host, so its client runtime has no authenticated carrier of its own; the Desktop preload exposes `window.dshVoiceModels` instead, the shell calls these routes with the Host cookie it already holds, and it holds the event stream only while a pane is subscribed. A Host that serves no model route answers nothing, and the pane renders its disconnected state rather than an empty catalog.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -118,7 +144,10 @@ The panel is served as a static document on the shell origin, so no Host request
 | Source | Responsibility |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Host `VoiceAliveService` registered as `ctx.voiceAlive`, plus the exported ASR, TTS, supervisor, and binding entry points |
-| [`src/conductor/tools.ts`](src/conductor/tools.ts) | Host conductor service: the four workspace and session tools, their typed results, and the binding sink |
+| [`instructions.md`](instructions.md) | Voice policy text the row installs as the `voice:policy` prompt section |
+| [`src/instructions.ts`](src/instructions.ts) | Instruction asset read and the bound-Session prompt section |
+| [`src/conductor/routing.ts`](src/conductor/routing.ts) | Shared route resolution, archived recovery, and the durable binding write behind the three binding tools |
+| [`src/conductor/tools.ts`](src/conductor/tools.ts) | Host conductor service: the four tool definitions, their schemas, and the binding sink |
 | [`src/binding/`](src/binding/) | Durable Session binding, startup restore, and the Audio workspace fallback |
 | [`src/engine/asr.ts`](src/engine/asr.ts) | Host ASR engine: spawn, handshake, serial queue, idle shutdown, typed failures |
 | [`src/engine/asr-worker.ts`](src/engine/asr-worker.ts) | ASR worker: JSON-line protocol over stdin and fd 3, sherpa-onnx Whisper/Parakeet |
@@ -128,6 +157,9 @@ The panel is served as a static document on the shell origin, so no Host request
 | [`src/engine/tts-worker.ts`](src/engine/tts-worker.ts) | TTS worker: Kokoro synthesis and WAV framing over stdout |
 | [`src/engine/supervisor.ts`](src/engine/supervisor.ts) | Engine supervisor: model selection, per-engine lanes and queues, health, restart, crash isolation, shutdown |
 | [`src/engine/worker.ts`](src/engine/worker.ts) | Single `./worker` dispatcher that validates the role and loads the ASR or TTS worker |
+| [`src/models/catalog.ts`](src/models/catalog.ts) | Pinned catalog: revision-pinned URLs, exact byte counts, SHA-256 per file, licenses, and the directory layout each engine reads |
+| [`src/models/host/`](src/models/host/) | Model store: resume and restart policy, checksum verification, atomic finalize, readiness, the supervisor gate, and the exact Fetch routes the shell bridge calls |
+| [`src/models/types.ts`](src/models/types.ts) | Catalog, state, readiness, and selection types shared by both faces |
 | [`src/client/index.ts`](src/client/index.ts) | Panel-document activation gate |
 | [`src/client/mount.tsx`](src/client/mount.tsx) | React root mount, URL-selected surface, and disposal |
 | [`src/client/surfaces.ts`](src/client/surfaces.ts) | Surface registry parsed from `?surface=panel\|settings\|history` |
@@ -135,7 +167,7 @@ The panel is served as a static document on the shell origin, so no Host request
 | [`src/client/orb/`](src/client/orb/) | Monochrome orb canvas, palette, and motion math |
 | [`src/client/panel/`](src/client/panel/) | Panel orb state store, shell bridge, and window controls |
 | [`src/client/audio/`](src/client/audio/) | 16 kHz microphone capture, VAD segmentation, word gate, and input device enumeration; ordered WAV playback, output-device routing, output level, and the echo-reference node; the echo guard that cancels the playback reference, holds the half-duplex tail, and rejects self-transcription; the audio state machine that ties capture, playback, and mute together |
-| [`src/client/settings/`](src/client/settings/) | Five-tab settings frame and its pane placeholders |
+| [`src/client/settings/`](src/client/settings/) | Five-tab settings frame, the Models pane over the validated shell bridge with download, cancel, remove, and activate, and the remaining pane placeholders |
 | [`src/client/history/`](src/client/history/) | History list, search, delete flow, and the `HistorySource` seam |
 | [`src/client/styles/`](src/client/styles/) | Design-system stylesheets copied from `voice-plugin/design/` |
 | [`panel/main.ts`](panel/main.ts) | Panel document entry that runs `AppWebEntry` |
@@ -175,14 +207,27 @@ A fixed schema cost on every request from a Session in a deployment that loads t
 
 Prefix-stable while the tool definitions are unchanged. Loading or unloading the row changes the tool block and can invalidate reuse from the first changed schema token.
 
+### Voice instructions
+
+#### What the model sees
+
+The `voice:policy` section text only in the Session the panel is bound to, whether the startup restore or a completed conductor switch bound it. It names the four conductor tools with the arguments each takes and states the reply rules: one or two spoken sentences with no lists, code, or Markdown.
+
+#### Token effect
+
+A fixed block of roughly 340 words in the bound Session's system prompt on every request while that Session stays bound. Every other Session assembles an empty section, which renders to nothing.
+
+#### KV Cache effect
+
+Prefix-stable while the policy text and the binding are unchanged. Switching the panel to another Session adds the block to that Session's next request and removes it from the previous one.
+
 ## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>
 
 - **Supervisor not wired to the daemon** — `VoiceAliveService` still has no audio state; `createEngineSupervisor` owns both exported engines, and the audio surfaces attach in later tickets.
-- **Conductor binding is not durable yet** — the conductor records a binding through `VoiceBindingTarget`, but the row does not install its durable binding store on that sink, so `ctx.voiceConductor.currentBinding` is lost on restart.
-- **No bundled weights** — both engines read a model directory supplied by their caller; downloading and verifying Whisper, Parakeet, or Kokoro weights is ticket 19's job, so `load` rejects until that directory exists.
-- **Placeholder settings panes** — the five tabs switch, but each pane is an honest placeholder; the audio, shortcut, model, workspace, and privacy controls attach in later waves, with models, workspaces, and privacy in tickets 19–21.
+- **No bundled weights** — the package ships no model bytes. The Models pane downloads and verifies Whisper, Parakeet, and Kokoro weights into the profile; both engines still load the caller-supplied directory and reject when it is missing.
+- **Four placeholder settings panes** — audio, shortcuts, and workspaces remain honest placeholders; the Models pane renders the store's catalog state, and the privacy pane states the outbound, on-disk, retention, and switch facts without offering a control that cannot change them.
 - **Fixture history** — the history window lists a fixed in-memory fixture through `createHistorySource`; the durable store replaces that factory in ticket 22.
 - **Local panel state** — the orb reads one client store ([`src/client/panel/state.ts`](src/client/panel/state.ts)) that the audio state machine drives.
 - **Echo guard not wired into the panel** — `createEchoGuard` is exported for the panel surface to own. Capture accepts the frame-level tap through `CaptureOptions.frameGate`, and the audio machine applies the segment-level backstop when it is given the guard; the panel constructs neither yet.

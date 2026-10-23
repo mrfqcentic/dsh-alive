@@ -264,8 +264,10 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // outside the TypeScript emit; the Desktop shell serves them from the
   // installed package under `dsh-app://shell/voice/`. The single `./worker`
   // dispatcher launches two role bundles resolved relative to it, so those
-  // sit outside the export paths the publication list derives from.
-  '@deepseek-ai/dsh-voice-alive': ['dist/panel', 'lib/asr-worker.js', 'lib/tts-worker.js'],
+  // sit outside the export paths the publication list derives from. The row
+  // reads `instructions.md` relative to its own entry, so the policy ships
+  // beside `lib/` without a public subpath.
+  '@deepseek-ai/dsh-voice-alive': ['dist/panel', 'instructions.md', 'lib/asr-worker.js', 'lib/tts-worker.js'],
 }
 
 function sameStringList(actual: readonly string[] | undefined, expected: readonly string[]): boolean {

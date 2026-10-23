@@ -142,6 +142,7 @@ export class DesktopMandatoryUpdatePolicy {
    * @param request - Anonymous Fetch or the dedicated test-authentication Session transport.
    * @param client - UI build version, language, and UTC offset, sampled for every check.
    * @param random - Jitter source, replaceable for clock-driven tests.
+   * @param poll - Whether a completed check arms the next automatic one; false keeps policy checks manual.
    */
   constructor(
     private readonly config: DesktopPolicyConfig,
@@ -150,6 +151,7 @@ export class DesktopMandatoryUpdatePolicy {
     private readonly request: typeof fetch = fetch,
     private readonly client: () => AccountClientMetadata,
     private readonly random: () => number = Math.random,
+    private readonly poll = true,
   ) {
     if (valid(this.client().version) === null || valid(identity.bundledDshVersion) === null
       || (identity.platform === 'win32' && identity.arch !== 'x64')) throw new Error('desktop policy: invalid installed client identity')
@@ -175,6 +177,7 @@ export class DesktopMandatoryUpdatePolicy {
    */
   check(scenario: string, manual = false): Promise<DesktopPolicyState> {
     if (this.disposed) return Promise.reject(new Error('desktop policy: disposed'))
+    if (!manual && !this.poll) return Promise.resolve(this.current)
     if (this.pending !== undefined) return this.pending
     if (!manual && Date.now() < this.nextCheck) return Promise.resolve(this.current)
     clearTimeout(this.timer)
@@ -210,7 +213,7 @@ export class DesktopMandatoryUpdatePolicy {
       return this.current
     }).finally(() => {
       this.pending = undefined
-      if (this.disposed) return
+      if (this.disposed || !this.poll) return
       const base = Math.min(this.config.maxBackoffMs, this.config.intervalMs * 2 ** Math.min(this.failures, 20))
       const delay = Math.min(this.config.maxBackoffMs, Math.round(base * (1 + this.random() * this.config.jitter)))
       this.nextCheck = Date.now() + delay

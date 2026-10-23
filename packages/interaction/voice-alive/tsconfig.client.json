@@ -12,7 +12,9 @@
     "src/index.ts",
     "src/binding",
     "src/conductor",
-    "src/engine"
+    "src/engine",
+    "src/instructions.ts",
+    "src/models/host"
   ],
   "references": [
     {

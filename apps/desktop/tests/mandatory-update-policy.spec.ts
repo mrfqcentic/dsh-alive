@@ -12,11 +12,11 @@ const deployment = { origin: 'https://policy.example.com', allowedPageOrigins: [
 const instances: DesktopMandatoryUpdatePolicy[] = []
 
 function fixture(authentication: 'anonymous' | 'feishu-test' = 'anonymous',
-  clientSource: () => AccountClientMetadata = () => client) {
+  clientSource: () => AccountClientMetadata = () => client, poll = true) {
   const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(clear))
   const publish = vi.fn<(state: DesktopPolicyState) => void>()
   const policy = new DesktopMandatoryUpdatePolicy(resolveDesktopPolicyConfig({ ...deployment, authentication, ...(authentication === 'feishu-test' ? { allowedAuthOrigins: ['https://login.example.com'] } : {}) })!,
-    identity, publish, request, clientSource)
+    identity, publish, request, clientSource, Math.random, poll)
   instances.push(policy)
   return { policy, request, publish }
 }
@@ -28,6 +28,20 @@ afterEach(async () => {
 })
 
 describe('mandatory update policy', () => {
+  it('does not poll when checks are manual: automatic callers are ignored and manual checks arm no timer', async () => {
+    const { policy, request } = fixture('anonymous', () => client, false)
+    await policy.check('launch')
+    await policy.check('foreground')
+    await policy.check('resume')
+    expect(request).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+    expect(await policy.check('manual', true)).toEqual({ blocking: false, checking: false })
+    expect(request).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
+    await vi.advanceTimersByTimeAsync(1_000_000)
+    expect(request).toHaveBeenCalledOnce()
+  })
+
   it('retains a known block through test authentication expiry and rejects 422 as a policy decision', async () => {
     const { policy, request } = fixture('feishu-test')
     request.mockResolvedValueOnce(Response.json(force)).mockResolvedValueOnce(Response.json({
