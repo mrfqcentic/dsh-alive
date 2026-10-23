@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与专用浏览器面板。同一条双面配置行在 Host 中挂载 `ctx.voiceAlive`，并提供仅在面板文档内渲染的客户端条目。该客户端在主聊天界面保持惰性。面板文档以语音专用名册启动常规客户端内核，名册由包自身的 `dist/panel/` 提供。Bundle 层把这条配置行组合到 `dsh-base` 之上。
+为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与专用浏览器面板。同一条双面配置行在 Host 中挂载 `ctx.voiceAlive`，并提供仅在面板文档内渲染的客户端条目。该客户端在主聊天界面保持惰性。面板文档以语音专用名册启动常规客户端内核，名册由包自身的 `dist/panel/` 提供。面板渲染单色 Orb 与其两个窗口控件；settings 与 history 作为同一文档的独立界面打开，由 `?surface=` 选择。Bundle 层把这条配置行组合到 `dsh-base` 之上。
 
 ## 目录
 
@@ -58,7 +58,11 @@ Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带
 | [`src/client/index.ts`](src/client/index.ts) | 面板文档激活判定 |
 | [`src/client/mount.tsx`](src/client/mount.tsx) | React 根挂载、按 URL 选择界面与释放 |
 | [`src/client/surfaces.ts`](src/client/surfaces.ts) | 从 `?surface=panel\|settings\|history` 解析的界面注册表 |
-| [`src/client/surfaces/`](src/client/surfaces/) | 每个界面一个占位组件 |
+| [`src/client/surfaces/`](src/client/surfaces/) | 每个界面一个组件：panel、settings、history |
+| [`src/client/orb/`](src/client/orb/) | 单色 Orb 画布、其调色板与运动数学 |
+| [`src/client/panel/`](src/client/panel/) | 面板 Orb 状态存储、shell 桥接与窗口控件 |
+| [`src/client/settings/`](src/client/settings/) | 五标签页 settings 框架及其占位面板 |
+| [`src/client/history/`](src/client/history/) | 历史列表、搜索、删除流程与 `HistorySource` 接缝 |
 | [`src/client/styles/`](src/client/styles/) | 从 `voice-plugin/design/` 复制的设计系统样式表 |
 | [`panel/main.ts`](panel/main.ts) | 运行 `AppWebEntry` 的面板文档入口 |
 | [`panel/vite.config.ts`](panel/vite.config.ts) | 使用 shell 浏览器 define 的相对基址面板构建 |
@@ -94,8 +98,9 @@ Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带
 <a id="known-limitations-and-deferred-work"></a>
 
 - **空的 Host 命名空间** — `VoiceAliveService` 尚无 conductor 工具、会话绑定、音频状态或引擎。
-- **占位界面** — panel、settings 与 history 三个注册项各自渲染一个标出界面名的单色标记，而非 Orb、标签页或轮次列表。
-- **随包层中的占位界面** — `web` profile 模板会选择该 Bundle，因此全新的 Web 或 Desktop 安装都会挂载该配置行；这些界面仍是上文的占位实现。
+- **占位 settings 面板** — 五个标签页可以切换，但每个面板都是如实的占位实现；模型、工作区、音频、快捷键与隐私控件在工单 19–21 中接入。
+- **Fixture 历史** — 历史窗口通过 `createHistorySource` 列出一份固定的内存 Fixture；持久化存储将在工单 22 中替换该工厂。
+- **本地面板状态** — Orb 读取一个客户端存储（[`src/client/panel/state.ts`](src/client/panel/state.ts)），音频状态机从工单 10 起驱动它。
 - **面板路由由 shell 拥有** — 此包输出带文档相对 URL 的 `dist/panel/`，但 Desktop 协议处理器必须把 `/voice/*` 映射到它。Web 服务器不提供面板。
 - **与 shell 同等规模的惰性资源** — 面板构建携带客户端内核按需拆分的语法与字体资源，因此 `dist/panel/` 在磁盘上约 20 MB。面板从不加载这些分块；它们存在是因为 shell 的静态模块表会触及它们。
 

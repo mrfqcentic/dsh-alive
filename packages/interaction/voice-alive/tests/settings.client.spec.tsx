@@ -30,6 +30,7 @@ beforeEach(() => { window.sessionStorage.clear() })
 
 afterEach(() => {
   cleanup()
+  Reflect.deleteProperty(window, 'dshVoicePanel')
   vi.restoreAllMocks()
   window.sessionStorage.clear()
 })
@@ -129,6 +130,16 @@ it('restores a stored tab and ignores an unknown stored value', () => {
   window.sessionStorage.setItem(SETTINGS_TAB_STORAGE_KEY, 'retired-section')
   render(<SettingsSurface surface="settings" />)
   expectSelected('models')
+})
+
+it('asks the shell to close the window on Escape', () => {
+  const close = vi.fn(async () => {})
+  window.dshVoicePanel = { protocolVersion: 1, close }
+  render(<SettingsSurface surface="settings" />)
+
+  fireEvent.keyDown(window, { key: 'Escape' })
+
+  expect(close).toHaveBeenCalledOnce()
 })
 
 it('keeps the surface usable when session storage is unavailable', () => {

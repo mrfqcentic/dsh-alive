@@ -1,13 +1,14 @@
 /**
  * Settings surface: the content of the 520×640 settings window.
  *
- * The Desktop shell owns the window, its glass backdrop, always-on-top
- * behaviour, and Escape. This surface owns the five-tab frame, the keyboard
- * model, and the session-scoped selected tab. The pane list lives only in
- * `settings/tabs.ts`, so a later ticket replaces one pane file.
+ * The Desktop shell owns the window, its glass backdrop, and always-on-top
+ * behaviour. This surface owns the five-tab frame, the keyboard model, the
+ * Escape-to-close request, and the session-scoped selected tab. The pane list
+ * lives only in `settings/tabs.ts`, so a later ticket replaces one pane file.
  * @module @deepseek-ai/dsh-voice-alive/client/surfaces/settings
  */
-import { useRef, useState, type KeyboardEvent, type ReactElement } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactElement } from 'react'
+import { panelBridge } from '../panel/bridge.ts'
 import { readActiveSettingsTab, storeActiveSettingsTab } from '../settings/active-tab.ts'
 import { copy } from '../settings/locales.ts'
 import css from '../settings/settings.module.css'
@@ -38,14 +39,27 @@ export function SettingsSurface({ surface }: SurfaceProps): ReactElement {
     storeActiveSettingsTab(id)
   }
 
-  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number): void => {
+  // The shell no longer intercepts Escape for surface windows; the surface asks
+  // it to close this window, which leaves the tab list's own keys untouched.
+  useEffect(() => {
+    /** @param event - a keydown received anywhere in the settings document. */
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      void panelBridge.close()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => { window.removeEventListener('keydown', onKeyDown) }
+  }, [])
+
+  const onTabKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number): void => {
     let next: number
     switch (event.key) {
       case 'ArrowLeft': next = (index - 1 + SETTINGS_TABS.length) % SETTINGS_TABS.length; break
       case 'ArrowRight': next = (index + 1) % SETTINGS_TABS.length; break
       case 'Home': next = 0; break
       case 'End': next = SETTINGS_TABS.length - 1; break
-      // Escape stays unclaimed: the shell closes the window from its own key handler.
+      // Escape stays unclaimed by the tab strip; the surface's window listener
+      // asks the shell to close the window.
       default: return
     }
     event.preventDefault()

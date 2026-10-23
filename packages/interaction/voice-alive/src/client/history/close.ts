@@ -1,34 +1,21 @@
 /**
  * Close the history surface's shell window.
  *
- * The Electron preload exposes `window.dshVoicePanel`; when it grows a
- * `close()` operation this accessor uses it, and in every other document
- * (including this package's tests and a plain browser) it falls back to
- * `window.close()`. The accessor stays private so the shell bridge can gain
- * that operation without another edit here.
+ * The Electron preload exposes `window.dshVoicePanel`; its contract is owned by
+ * `client/panel/bridge.ts`, so this module adds no second declaration. In a
+ * document without the bridge (this package's tests and a plain browser) the
+ * close falls back to `window.close()`.
  * @module @deepseek-ai/dsh-voice-alive/client/history/close
  */
-
-/** The part of the voice preload bridge this surface needs. */
-interface VoicePanelCloseBridge {
-  /** Close the window that renders the surface. */
-  readonly close?: () => void
-}
-
-declare global {
-  interface Window {
-    /** Shell bridge present only in the Electron voice panel document. */
-    readonly dshVoicePanel?: VoicePanelCloseBridge
-  }
-}
+import type { VoicePanelBridgeApi } from '../panel/bridge.ts'
 
 /**
  * Close the window that renders the history surface.
  */
 export function closeHistoryWindow(): void {
-  const bridge = window.dshVoicePanel
+  const bridge: Pick<VoicePanelBridgeApi, 'close'> | undefined = window.dshVoicePanel
   if (bridge?.close !== undefined) {
-    bridge.close()
+    void bridge.close()
     return
   }
   window.close()

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Give the shipped Web and Desktop profiles a voice panel Host service and a dedicated browser panel. The same dual-face row mounts `ctx.voiceAlive` in the Host and a client entry that renders only inside the panel document. The client stays inert in the main chat surface. The panel document boots the ordinary client kernel with a voice-only roster served from the package's own `dist/panel/`. The bundle layer composes the row over `dsh-base`.
+Give the shipped Web and Desktop profiles a voice panel Host service and a dedicated browser panel. The same dual-face row mounts `ctx.voiceAlive` in the Host and a client entry that renders only inside the panel document. The client stays inert in the main chat surface. The panel document boots the ordinary client kernel with a voice-only roster served from the package's own `dist/panel/`. The panel renders the monochrome orb and its two window controls; settings and history open as separate surfaces of the same document, which `?surface=` selects. The bundle layer composes the row over `dsh-base`.
 
 ## Table of Contents
 
@@ -58,7 +58,11 @@ The panel is served as a static document on the shell origin, so no Host request
 | [`src/client/index.ts`](src/client/index.ts) | Panel-document activation gate |
 | [`src/client/mount.tsx`](src/client/mount.tsx) | React root mount, URL-selected surface, and disposal |
 | [`src/client/surfaces.ts`](src/client/surfaces.ts) | Surface registry parsed from `?surface=panel\|settings\|history` |
-| [`src/client/surfaces/`](src/client/surfaces/) | One placeholder component per surface |
+| [`src/client/surfaces/`](src/client/surfaces/) | One component per surface: panel, settings, history |
+| [`src/client/orb/`](src/client/orb/) | Monochrome orb canvas, palette, and motion math |
+| [`src/client/panel/`](src/client/panel/) | Panel orb state store, shell bridge, and window controls |
+| [`src/client/settings/`](src/client/settings/) | Five-tab settings frame and its pane placeholders |
+| [`src/client/history/`](src/client/history/) | History list, search, delete flow, and the `HistorySource` seam |
 | [`src/client/styles/`](src/client/styles/) | Design-system stylesheets copied from `voice-plugin/design/` |
 | [`panel/main.ts`](panel/main.ts) | Panel document entry that runs `AppWebEntry` |
 | [`panel/vite.config.ts`](panel/vite.config.ts) | Relative-base panel build with the shell's browser defines |
@@ -94,8 +98,9 @@ The row changes no request assembly, so no prompt segment or cache boundary depe
 <a id="known-limitations-and-deferred-work"></a>
 
 - **Empty Host namespace** — `VoiceAliveService` has no conductor tools, session binding, audio state, or engines.
-- **Placeholder surfaces** — the panel, settings, and history registrations each render a monochrome mark naming the surface, not the orb, tabs, or turn list.
-- **Placeholder surface in a shipped layer** — the `web` profile template selects the bundle, so a fresh Web or Desktop install mounts the row; the surfaces are still the placeholders above.
+- **Placeholder settings panes** — the five tabs switch, but each pane is an honest placeholder; model, workspace, audio, shortcut, and privacy controls attach in tickets 19–21.
+- **Fixture history** — the history window lists a fixed in-memory fixture through `createHistorySource`; the durable store replaces that factory in ticket 22.
+- **Local panel state** — the orb reads one client store ([`src/client/panel/state.ts`](src/client/panel/state.ts)) that the audio state machine drives from ticket 10.
 - **Panel route is shell-owned** — this package emits `dist/panel/` with document-relative URLs, but the Desktop protocol handler must map `/voice/*` onto it. The Web server does not serve the panel.
 - **Shell-sized lazy assets** — the panel build carries the client kernel's code-split grammar and font assets, so `dist/panel/` is roughly 20 MB on disk. The panel never loads those chunks; they exist because the shell's static module table reaches them.
 
