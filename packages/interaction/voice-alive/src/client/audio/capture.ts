@@ -312,6 +312,7 @@ class Capture implements CaptureController {
   private runner: Promise<void> | undefined
   private wasRunning = false
   private delivery: Promise<void> = Promise.resolve()
+  private nextSegmentId = 0
 
   /**
    * @param deviceId - exact input device id, or undefined for the system default.
@@ -432,7 +433,10 @@ class Capture implements CaptureController {
    */
   private receive(frame: Int16Array, token: number): void {
     if (token !== this.generation) return
-    for (const segment of this.segmenter.push(frame)) this.offer(segment, token)
+    for (const segment of this.segmenter.push(frame)) {
+      this.offer({ ...segment, id: this.nextSegmentId }, token)
+      this.nextSegmentId += 1
+    }
   }
 
   /**

@@ -25,7 +25,10 @@ export interface CaptureChunk {
  * segment listener.
  */
 export interface SpeechSegment {
-  /** Segment number within one capture controller, starting at 0. */
+  /**
+   * Segment number unique within one capture controller, starting at 0. It
+   * survives mute, stop, and failure, and resets only with a new controller.
+   */
   readonly id: number
   /**
    * 16 kHz mono signed 16-bit PCM. Includes the pre-roll before the first

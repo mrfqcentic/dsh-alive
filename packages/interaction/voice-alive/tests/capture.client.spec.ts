@@ -511,6 +511,23 @@ describe('mute', () => {
     session.controller.stop()
   })
 
+  it('keeps segment ids unique across mute and unmute', async () => {
+    const session = await openSession({ gate: { accept: () => true } })
+    utter(session, 16000, 0.5)
+    await tick()
+    expect(session.segments.map(segment => segment.id)).toEqual([0])
+
+    session.controller.setMuted(true)
+    session.controller.setMuted(false)
+    await tick(12)
+    expect(session.controller.state).toBe('running')
+
+    utter(session, 16000, 0.5)
+    await tick()
+    expect(session.segments.map(segment => segment.id)).toEqual([0, 1])
+    session.controller.stop()
+  })
+
   it('does not start capture when unmuting a controller that was idle', async () => {
     installEnvironment()
     const controller = createCapture()
