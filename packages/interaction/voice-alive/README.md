@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Give the shipped Web and Desktop profiles a voice panel Host service and a dedicated browser panel. The same dual-face row mounts `ctx.voiceAlive` in the Host and a client entry that renders only inside the panel document. The client stays inert in the main chat surface. The panel document boots the ordinary client kernel with a voice-only roster served from the package's own `dist/panel/`. The panel renders the monochrome orb and its two window controls; settings and history open as separate surfaces of the same document, which `?surface=` selects. The Host face also exposes both local speech engines, each in its own `ELECTRON_RUN_AS_NODE` child behind the package's single `./worker` entry: `createAsrEngine` transcribes with Whisper or Parakeet, and `createTtsEngine` streams sentence-sized 24 kHz mono WAV chunks from Kokoro. The `createEngineSupervisor` export holds one model per engine, serializes each engine's swaps and jobs on its own lane, and reports health for both. The bundle layer composes the row over `dsh-base`.
+Give the shipped Web and Desktop profiles a voice panel Host service and a dedicated browser panel. The same dual-face row mounts `ctx.voiceAlive` in the Host and a client entry that renders only inside the panel document. The client stays inert in the main chat surface. The panel document boots the ordinary client kernel with a voice-only roster served from the package's own `dist/panel/`. The panel renders the monochrome orb and its two window controls; settings and history open as separate surfaces of the same document, which `?surface=` selects. The Host face also exposes both local speech engines, each in its own `ELECTRON_RUN_AS_NODE` child behind the package's single `./worker` entry: `createAsrEngine` transcribes with Whisper or Parakeet, and `createTtsEngine` streams sentence-sized 24 kHz mono WAV chunks from Kokoro. The `createEngineSupervisor` export holds one model per engine, serializes each engine's swaps and jobs on its own lane, and reports health for both. The Host row also registers four conductor tools that list workspaces and bind the panel to a new or resumed session. The bundle layer composes the row over `dsh-base`.
 
 ## Table of Contents
 
@@ -41,6 +41,12 @@ The row takes no configuration; model, audio-device, and binding settings attach
 ```
 
 The Host half registers `ctx.voiceAlive`. The browser half activates only when the document carries `data-dsh-voice-panel` on `<html>`, which is exactly the panel document.
+
+### Conductor tools
+
+The Host row registers four ordinary tools on `ctx.tools`. `voice_list_workspaces` reports each workspace's id, title, path, and session count. `voice_open_workspace` binds the panel to the most recent unarchived session in a workspace or creates one, `voice_new_session` creates and binds a fresh session, and `voice_resume_session` binds a named or the most recent session. Each binding tool resolves a workspace by exact title, directory path, or final path segment and returns candidates for a partial or shared name instead of choosing one. Failures are typed and explicit: an unknown workspace, a missing session, an archived session, and a subagent session each report their own code without changing the binding.
+
+Completed bindings reach durable storage through `VoiceBindingTarget`; the last accepted binding is readable as `ctx.voiceConductor.currentBinding`.
 
 ### ASR engine
 
@@ -106,6 +112,7 @@ The panel is served as a static document on the shell origin, so no Host request
 | Source | Responsibility |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Host `VoiceAliveService` registered as `ctx.voiceAlive`, plus the exported ASR, TTS, and supervisor entry points |
+| [`src/conductor/tools.ts`](src/conductor/tools.ts) | Host conductor service: the four workspace and session tools, their typed results, and the binding sink |
 | [`src/engine/asr.ts`](src/engine/asr.ts) | Host ASR engine: spawn, handshake, serial queue, idle shutdown, typed failures |
 | [`src/engine/asr-worker.ts`](src/engine/asr-worker.ts) | ASR worker: JSON-line protocol over stdin and fd 3, sherpa-onnx Whisper/Parakeet |
 | [`src/engine/types.ts`](src/engine/types.ts) | ASR request/result/engine contract and the worker frames |
@@ -147,17 +154,26 @@ The panel is served as a static document on the shell origin, so no Host request
 <a id="model-experience"></a>
 ## Model Experience
 
-None, as the row registers a Host service namespace and a browser panel mount without adding tools, prompt sections, or Session events.
+### Conductor tools
+
+#### What the model sees
+
+The `voice_list_workspaces`, `voice_open_workspace`, `voice_new_session`, and `voice_resume_session` schemas whenever the row is loaded. Each binding result carries the workspace id, title, path, and session count plus the session id, title, last activity, and archive flag from the registries. A partial or shared workspace name returns candidates instead of binding.
+
+#### Token effect
+
+A fixed schema cost on every request from a Session in a deployment that loads the row. Binding results stay in the calling Session's history until compaction.
 
 #### KV Cache effect
 
-The row changes no request assembly, so no prompt segment or cache boundary depends on it.
+Prefix-stable while the tool definitions are unchanged. Loading or unloading the row changes the tool block and can invalidate reuse from the first changed schema token.
 
 ## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Supervisor not wired to the daemon** — `VoiceAliveService` still has no conductor tools, session binding, or audio state; `createEngineSupervisor` owns both exported engines, and the conductor and audio surfaces attach in later tickets.
+- **Supervisor not wired to the daemon** — `VoiceAliveService` still has no audio state; `createEngineSupervisor` owns both exported engines, and the audio surfaces attach in later tickets.
+- **Conductor binding is not durable yet** — the conductor records a binding through `VoiceBindingTarget`, but nothing installs a store yet, so `ctx.voiceConductor.currentBinding` is lost on restart.
 - **No bundled weights** — both engines read a model directory supplied by their caller; downloading and verifying Whisper, Parakeet, or Kokoro weights is ticket 19's job, so `load` rejects until that directory exists.
 - **Placeholder settings panes** — the five tabs switch, but each pane is an honest placeholder; the audio, shortcut, model, workspace, and privacy controls attach in later waves, with models, workspaces, and privacy in tickets 19–21.
 - **Fixture history** — the history window lists a fixed in-memory fixture through `createHistorySource`; the durable store replaces that factory in ticket 22.
