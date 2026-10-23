@@ -1,0 +1,110 @@
+/* Voice — design tokens.
+   The only custom properties in the system. Pages and components reference
+   these names; nothing else defines a raw value. */
+
+:root {
+  /* Surfaces */
+  --bg: #050505;
+  --surface: #0d0d0d;
+  --surface-2: #131313;
+  --surface-3: #1a1a1a;
+  --surface-hover: #242424;
+  --line: rgba(255, 255, 255, 0.10);
+  --line-strong: rgba(255, 255, 255, 0.20);
+
+  /* Text */
+  --text: #f7f7f7;
+  --text-2: #a6a6a6;
+  --text-3: #6e6e6e;
+
+  /* Ink and states */
+  --accent: #f5f5f5;
+  --accent-hover: #ffffff;
+  --accent-press: #d6d6d6;
+  --accent-soft: rgba(255, 255, 255, 0.10);
+  --accent-ink: #0a0a0a;
+  --mid: #cfcfcf;
+  --success: #cfcfcf;
+  --warning: #8f8f8f;
+  --danger: #ffffff;
+  --focus: #ffffff;
+
+  /* Type */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  --mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-base: 13px;
+  --fs-md: 15px;
+  --fs-lg: 18px;
+  --fs-xl: 24px;
+  --fs-2xl: 34px;
+  --fs-3xl: 48px;
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semi: 600;
+  --lh-tight: 1.15;
+  --lh-snug: 1.35;
+  --lh-base: 1.55;
+  --tracking-tight: -0.02em;
+  --tracking-wide: 0.14em;
+
+  /* Space */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-7: 32px;
+  --s-8: 40px;
+  --s-9: 48px;
+  --s-10: 64px;
+  --s-11: 96px;
+
+  /* Radius */
+  --r-xs: 5px;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --r-pill: 999px;
+
+  /* Shadow */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 24px 64px rgba(0, 0, 0, 0.6);
+  --shadow-orb: 0 18px 50px rgba(109, 124, 255, 0.28);
+
+  /* Glass */
+  --aurora-1: rgba(255, 255, 255, 0.30);
+  --aurora-2: rgba(255, 255, 255, 0.18);
+  --aurora-3: rgba(255, 255, 255, 0.10);
+  --aurora-4: rgba(255, 255, 255, 0.22);
+  --glass-fill: rgba(20, 20, 34, 0.38);
+  --glass-fill-strong: rgba(14, 14, 26, 0.62);
+  --glass-stroke: rgba(255, 255, 255, 0.14);
+  --glass-stroke-strong: rgba(255, 255, 255, 0.24);
+  --glass-highlight: rgba(255, 255, 255, 0.22);
+  --glass-shadow: 0 26px 70px rgba(0, 0, 0, 0.5);
+  --blur: 26px;
+  --blur-sm: 14px;
+
+  /* Motion */
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Layers */
+  --z-panel: 20;
+  --z-overlay: 40;
+  --z-toast: 60;
+
+  /* Control sizes */
+  --control-sm: 28px;
+  --control-md: 34px;
+  --control-lg: 40px;
+}

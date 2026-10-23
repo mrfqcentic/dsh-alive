@@ -56,8 +56,10 @@ Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带
 |---|---|
 | [`src/index.ts`](src/index.ts) | 注册为 `ctx.voiceAlive` 的 Host `VoiceAliveService` |
 | [`src/client/index.ts`](src/client/index.ts) | 面板文档激活判定 |
-| [`src/client/mount.tsx`](src/client/mount.tsx) | React 根挂载与释放 |
-| [`src/client/PanelPlaceholder.tsx`](src/client/PanelPlaceholder.tsx) | 临时面板根 |
+| [`src/client/mount.tsx`](src/client/mount.tsx) | React 根挂载、按 URL 选择界面与释放 |
+| [`src/client/surfaces.ts`](src/client/surfaces.ts) | 从 `?surface=panel\|settings\|history` 解析的界面注册表 |
+| [`src/client/surfaces/`](src/client/surfaces/) | 每个界面一个占位组件 |
+| [`src/client/styles/`](src/client/styles/) | 从 `voice-plugin/design/` 复制的设计系统样式表 |
 | [`panel/main.ts`](panel/main.ts) | 运行 `AppWebEntry` 的面板文档入口 |
 | [`panel/vite.config.ts`](panel/vite.config.ts) | 使用 shell 浏览器 define 的相对基址面板构建 |
 | [`scripts/assemble-panel.ts`](scripts/assemble-panel.ts) | 语音专用启动表与复制后的客户端 Bundle |
@@ -92,8 +94,8 @@ Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带
 <a id="known-limitations-and-deferred-work"></a>
 
 - **空的 Host 命名空间** — `VoiceAliveService` 尚无 conductor 工具、会话绑定、音频状态或引擎。
-- **占位面板** — 客户端只挂载一个单色圆形，而非 Orb 或面板框架。它不显示状态、设置或历史。
-- **随包层中的占位界面** — `web` profile 模板会选择该 Bundle，因此全新的 Web 或 Desktop 安装都会挂载该配置行；面板本身仍是上文的占位实现。
+- **占位界面** — panel、settings 与 history 三个注册项各自渲染一个标出界面名的单色标记，而非 Orb、标签页或轮次列表。
+- **随包层中的占位界面** — `web` profile 模板会选择该 Bundle，因此全新的 Web 或 Desktop 安装都会挂载该配置行；这些界面仍是上文的占位实现。
 - **面板路由由 shell 拥有** — 此包输出带文档相对 URL 的 `dist/panel/`，但 Desktop 协议处理器必须把 `/voice/*` 映射到它。Web 服务器不提供面板。
 - **与 shell 同等规模的惰性资源** — 面板构建携带客户端内核按需拆分的语法与字体资源，因此 `dist/panel/` 在磁盘上约 20 MB。面板从不加载这些分块；它们存在是因为 shell 的静态模块表会触及它们。
 

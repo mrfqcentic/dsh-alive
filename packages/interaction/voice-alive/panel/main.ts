@@ -7,6 +7,14 @@
  */
 import { AppWebEntry } from '@deepseek-ai/dsh-client-web'
 import './panel.css'
+// The design system is copied verbatim from `voice-plugin/design/`; load it
+// once here, before the client bundle mounts any surface. `glass.css` is last
+// because it overrides the flat shells with the translucent panes.
+import '../src/client/styles/tokens.css'
+import '../src/client/styles/base.css'
+import '../src/client/styles/components.css'
+import '../src/client/styles/motion.css'
+import '../src/client/styles/glass.css'
 
 const container = document.getElementById('root')
 if (container === null) throw new Error('voice panel: the document has no #root')

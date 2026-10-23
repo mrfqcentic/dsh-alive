@@ -26,6 +26,10 @@ export const VOICE_PANEL_URL = 'dsh-app://shell/voice/panel.html'
 export const VOICE_PANEL_ACCELERATOR = 'Alt+Space'
 /** Path prefix the `dsh-app://shell` handler routes to the voice package instead of the Web shell. */
 export const VOICE_PANEL_PATH_PREFIX = '/voice'
+/** Surfaces the panel renderer may open in their own window. */
+export const VOICE_SURFACE_IDS = ['settings', 'history'] as const
+/** Identifier of a surface that opens in its own always-on-top window. */
+export type VoiceSurfaceId = (typeof VOICE_SURFACE_IDS)[number]
 
 /**
  * Panel directory inside the packaged `dsh` project: the same `node_modules` layout the shell
@@ -42,8 +46,12 @@ const REPOSITORY_PANEL_DIRECTORY = fileURLToPath(
 
 /** Fixed content size shared by the window options and the position math. */
 const PANEL_CONTENT_SIZE = { width: 320, height: 440 } as const
+/** Fixed content size of a settings or history window. */
+const SURFACE_CONTENT_SIZE = { width: 520, height: 640 } as const
 /** Channel shared by the panel bridge and the preload; both copies must stay in sync. */
 const VOICE_PANEL_CHANNEL = 'dsh-voice:panel-state'
+/** Channel the panel or a surface renderer uses to open a surface window. */
+const VOICE_SURFACE_CHANNEL = 'dsh-voice:open-surface'
 /** Position file under Electron's `userData`, beside the shell's other device preferences. */
 const POSITION_FILE = 'voice-panel.json'
 /** Delay that merges a drag's repeated `moved` events into one write. */
@@ -73,15 +81,26 @@ export interface VoicePanelApi {
    * @returns function that stops observing.
    */
   subscribe(listener: (state: VoicePanelState) => void): () => void
+  /**
+   * Open the window for one surface, or focus it when it is already open.
+   * @param surface - settings or history.
+   * @returns a promise that resolves once the shell has handled the request.
+   */
+  openSurface(surface: VoiceSurfaceId): Promise<void>
 }
 
-/** Shell-owned controls of the single panel window. */
+/** Shell-owned controls of the single panel window and its surface windows. */
 export interface VoicePanel {
   /** Show and focus the panel, or hide it when it is already visible. */
   toggle(): void
   /** Hide the panel without quitting; the Dock, tray, and primary window stay as they are. */
   hide(): void
-  /** Unregister the chord, detach listeners and IPC, and destroy the window. */
+  /**
+   * Open the window for one surface, or focus it when it is already open.
+   * @param surface - settings or history.
+   */
+  openSurface(surface: VoiceSurfaceId): void
+  /** Unregister the chord, detach listeners and IPC, and destroy every voice window. */
   dispose(): void
 }
 
@@ -110,6 +129,26 @@ export function serveVoicePanelDocument(request: Request, root: string): Promise
   const target = new URL(request.url)
   target.pathname = target.pathname.slice(VOICE_PANEL_PATH_PREFIX.length) || '/'
   return serveWebDocument(new Request(target, { method: request.method }), root)
+}
+
+/**
+ * Document URL of one surface window: the panel document with its surface selection.
+ * @param surface - settings or history.
+ * @returns the `dsh-app://shell` URL that renders the selected surface.
+ */
+export function voiceSurfaceUrl(surface: VoiceSurfaceId): string {
+  const url = new URL(VOICE_PANEL_URL)
+  url.searchParams.set('surface', surface)
+  return url.toString()
+}
+
+/**
+ * Narrow a renderer payload to a surface that opens in its own window.
+ * @param value - value received over IPC.
+ * @returns whether the value names a surface window.
+ */
+function isVoiceSurfaceId(value: unknown): value is VoiceSurfaceId {
+  return value === 'settings' || value === 'history'
 }
 
 /** @returns whether `value` is a plain JSON object. */
@@ -191,6 +230,28 @@ function voicePanelWindowOptions(preload: string): BrowserWindowConstructorOptio
   }
 }
 
+/** @returns a surface window's renderer preferences: the panel's sandbox and preload at window size. */
+function voiceSurfaceWindowOptions(preload: string): BrowserWindowConstructorOptions {
+  return {
+    ...voicePanelWindowOptions(preload),
+    ...SURFACE_CONTENT_SIZE,
+  }
+}
+
+/**
+ * Keep a voice window above full-screen spaces and above normal application windows.
+ * @param target - the panel or surface window to configure.
+ */
+function applyTopmost(target: BrowserWindow): void {
+  if (process.platform === 'darwin') {
+    // Full-screen spaces keep a normal always-on-top window behind them; the chord must reach it.
+    target.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
+    target.setAlwaysOnTop(true, 'floating')
+  } else if (process.platform === 'win32') {
+    target.setVisibleOnAllWorkspaces(true)
+  }
+}
+
 /**
  * Create the process's sole voice panel and register its global summon chord.
  *
@@ -213,20 +274,16 @@ export function createVoicePanel(userData: string, isQuitting: () => boolean): V
     x: Math.round(cursorArea.x + (cursorArea.width - PANEL_CONTENT_SIZE.width) / 2),
     y: Math.round(cursorArea.y + (cursorArea.height - PANEL_CONTENT_SIZE.height) / 2),
   }
+  const preload = fileURLToPath(new URL('./preload-voice.cjs', import.meta.url))
   const window = new BrowserWindow({
-    ...voicePanelWindowOptions(fileURLToPath(new URL('./preload-voice.cjs', import.meta.url))),
+    ...voicePanelWindowOptions(preload),
     ...initial,
   })
-  if (process.platform === 'darwin') {
-    // Full-screen spaces keep a normal always-on-top window behind them; the chord must reach it.
-    window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true })
-    window.setAlwaysOnTop(true, 'floating')
-  } else if (process.platform === 'win32') {
-    window.setVisibleOnAllWorkspaces(true)
-  }
+  applyTopmost(window)
   let disposed = false
   let shortcutRegistered = false
   let saveTimer: NodeJS.Timeout | undefined
+  const surfaces = new Map<VoiceSurfaceId, BrowserWindow>()
 
   const state = (): VoicePanelState => ({
     visible: !window.isDestroyed() && window.isVisible(),
@@ -280,6 +337,71 @@ export function createVoicePanel(userData: string, isQuitting: () => boolean): V
     else show()
   }
 
+  /** @returns where a surface window opens: centred on the panel's display. */
+  const surfacePosition = (): { x: number; y: number } => {
+    const area = screen.getDisplayMatching(window.getBounds()).workArea
+    return {
+      x: Math.round(area.x + (area.width - SURFACE_CONTENT_SIZE.width) / 2),
+      y: Math.round(area.y + (area.height - SURFACE_CONTENT_SIZE.height) / 2),
+    }
+  }
+
+  /** Close one surface window; its `closed` listener releases the map entry. */
+  const closeSurface = (surface: VoiceSurfaceId): void => {
+    const target = surfaces.get(surface)
+    if (target === undefined || target.isDestroyed()) return
+    target.close()
+  }
+
+  /**
+   * Open one surface window, or raise the existing one. Closing a surface never
+   * quits the application; only `dispose` or the renderer's Escape destroys it.
+   */
+  const openSurface = (surface: VoiceSurfaceId): void => {
+    if (disposed) return
+    const existing = surfaces.get(surface)
+    if (existing !== undefined && !existing.isDestroyed()) {
+      existing.show()
+      existing.moveTop()
+      existing.focus()
+      return
+    }
+    const surfaceWindow = new BrowserWindow({
+      ...voiceSurfaceWindowOptions(preload),
+      ...surfacePosition(),
+    })
+    surfaces.set(surface, surfaceWindow)
+    applyTopmost(surfaceWindow)
+    const url = voiceSurfaceUrl(surface)
+    surfaceWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    surfaceWindow.webContents.on('will-navigate', (event, target) => {
+      if (target !== url) event.preventDefault()
+    })
+    // Escape closes the surface even while its document is missing or its renderer never boots.
+    surfaceWindow.webContents.on('before-input-event', (event, input) => {
+      if (input.type === 'keyDown' && input.key === 'Escape') {
+        event.preventDefault()
+        closeSurface(surface)
+      }
+    })
+    surfaceWindow.on('closed', () => {
+      if (surfaces.get(surface) === surfaceWindow) surfaces.delete(surface)
+    })
+    surfaceWindow.once('ready-to-show', () => {
+      if (disposed || surfaceWindow.isDestroyed()) return
+      // Opening after the panel puts the surface above it at the same always-on-top level.
+      surfaceWindow.moveTop()
+      surfaceWindow.show()
+      surfaceWindow.focus()
+    })
+    void surfaceWindow.loadURL(url).catch((error: unknown) => {
+      if (surfaces.get(surface) === surfaceWindow) surfaces.delete(surface)
+      if (!surfaceWindow.isDestroyed()) surfaceWindow.destroy()
+      if (disposed) return
+      console.warn(`desktop voice panel: ${url} did not load`, error)
+    })
+  }
+
   /** @returns whether this process owns the chord; reports every failure once and never throws. */
   const registerShortcut = (): boolean => {
     try {
@@ -327,6 +449,22 @@ export function createVoicePanel(userData: string, isQuitting: () => boolean): V
     }
     return state()
   })
+  /** @returns whether the request came from the main frame of the panel or one of its surfaces. */
+  const isOwnedFrame = (event: IpcMainInvokeEvent): boolean => {
+    if (event.senderFrame !== event.sender.mainFrame) return false
+    if (event.sender === window.webContents) return true
+    for (const surfaceWindow of surfaces.values()) {
+      if (surfaceWindow.webContents === event.sender) return true
+    }
+    return false
+  }
+  ipcMain.handle(VOICE_SURFACE_CHANNEL, (event: IpcMainInvokeEvent, surface: unknown) => {
+    if (disposed || !isOwnedFrame(event)) {
+      throw new Error('desktop voice panel: rejected surface request from an unowned frame')
+    }
+    if (!isVoiceSurfaceId(surface)) throw new Error('desktop voice panel: rejected unknown surface')
+    openSurface(surface)
+  })
   screen.on('display-removed', keepOnScreen)
   screen.on('display-metrics-changed', keepOnScreen)
 
@@ -343,6 +481,11 @@ export function createVoicePanel(userData: string, isQuitting: () => boolean): V
     }
     if (shortcutRegistered) globalShortcut.unregister(VOICE_PANEL_ACCELERATOR)
     ipcMain.removeHandler(VOICE_PANEL_CHANNEL)
+    ipcMain.removeHandler(VOICE_SURFACE_CHANNEL)
+    for (const surfaceWindow of surfaces.values()) {
+      if (!surfaceWindow.isDestroyed()) surfaceWindow.destroy()
+    }
+    surfaces.clear()
     if (!window.isDestroyed()) window.destroy()
   }
   app.on('will-quit', dispose)
@@ -353,5 +496,5 @@ export function createVoicePanel(userData: string, isQuitting: () => boolean): V
     console.warn(`desktop voice panel: ${VOICE_PANEL_URL} did not load`, error)
   })
 
-  return { toggle, hide, dispose }
+  return { toggle, hide, openSurface, dispose }
 }

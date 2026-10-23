@@ -56,8 +56,10 @@ The panel is served as a static document on the shell origin, so no Host request
 |---|---|
 | [`src/index.ts`](src/index.ts) | Host `VoiceAliveService` registered as `ctx.voiceAlive` |
 | [`src/client/index.ts`](src/client/index.ts) | Panel-document activation gate |
-| [`src/client/mount.tsx`](src/client/mount.tsx) | React root mount and disposal |
-| [`src/client/PanelPlaceholder.tsx`](src/client/PanelPlaceholder.tsx) | Temporary panel root |
+| [`src/client/mount.tsx`](src/client/mount.tsx) | React root mount, URL-selected surface, and disposal |
+| [`src/client/surfaces.ts`](src/client/surfaces.ts) | Surface registry parsed from `?surface=panel\|settings\|history` |
+| [`src/client/surfaces/`](src/client/surfaces/) | One placeholder component per surface |
+| [`src/client/styles/`](src/client/styles/) | Design-system stylesheets copied from `voice-plugin/design/` |
 | [`panel/main.ts`](panel/main.ts) | Panel document entry that runs `AppWebEntry` |
 | [`panel/vite.config.ts`](panel/vite.config.ts) | Relative-base panel build with the shell's browser defines |
 | [`scripts/assemble-panel.ts`](scripts/assemble-panel.ts) | Voice-only boot table and copied client bundles |
@@ -92,8 +94,8 @@ The row changes no request assembly, so no prompt segment or cache boundary depe
 <a id="known-limitations-and-deferred-work"></a>
 
 - **Empty Host namespace** — `VoiceAliveService` has no conductor tools, session binding, audio state, or engines.
-- **Placeholder panel** — the client mounts a single monochrome circle, not the orb or the panel chrome. It shows no state, settings, or history.
-- **Placeholder surface in a shipped layer** — the `web` profile template selects the bundle, so a fresh Web or Desktop install mounts the row; the panel itself is still the placeholder above.
+- **Placeholder surfaces** — the panel, settings, and history registrations each render a monochrome mark naming the surface, not the orb, tabs, or turn list.
+- **Placeholder surface in a shipped layer** — the `web` profile template selects the bundle, so a fresh Web or Desktop install mounts the row; the surfaces are still the placeholders above.
 - **Panel route is shell-owned** — this package emits `dist/panel/` with document-relative URLs, but the Desktop protocol handler must map `/voice/*` onto it. The Web server does not serve the panel.
 - **Shell-sized lazy assets** — the panel build carries the client kernel's code-split grammar and font assets, so `dist/panel/` is roughly 20 MB on disk. The panel never loads those chunks; they exist because the shell's static module table reaches them.
 
