@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与专用浏览器面板。同一条双面配置行在 Host 中挂载 `ctx.voiceAlive`，并提供仅在面板文档内渲染的客户端条目。该客户端在主聊天界面保持惰性。面板文档以语音专用名册启动常规客户端内核，名册由包自身的 `dist/panel/` 提供。面板渲染单色 Orb 与其两个窗口控件；settings 与 history 作为同一文档的独立界面打开，由 `?surface=` 选择。Bundle 层把这条配置行组合到 `dsh-base` 之上。
+为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与专用浏览器面板。同一条双面配置行在 Host 中挂载 `ctx.voiceAlive`，并提供仅在面板文档内渲染的客户端条目。该客户端在主聊天界面保持惰性。面板文档以语音专用名册启动常规客户端内核，名册由包自身的 `dist/panel/` 提供。面板渲染单色 Orb 与其两个窗口控件；settings 与 history 作为同一文档的独立界面打开，由 `?surface=` 选择。Host 半边还暴露本地 Kokoro TTS 引擎（`createTtsEngine`），它从以 `./worker` 发布的 `RunAsNode` 子进程流式输出按句切分的 24 kHz 单声道 WAV 分块。Bundle 层把这条配置行组合到 `dsh-base` 之上。
 
 ## 目录
 
@@ -54,7 +54,8 @@ Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带
 
 | 源码 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 注册为 `ctx.voiceAlive` 的 Host `VoiceAliveService` |
+| [`src/index.ts`](src/index.ts) | 注册为 `ctx.voiceAlive` 的 Host `VoiceAliveService`，以及 `createTtsEngine` 的 Host 接口 |
+| [`src/engine/`](src/engine/) | 本地 Kokoro TTS 引擎、句子切分及其 `RunAsNode` 子进程 |
 | [`src/client/index.ts`](src/client/index.ts) | 面板文档激活判定 |
 | [`src/client/mount.tsx`](src/client/mount.tsx) | React 根挂载、按 URL 选择界面与释放 |
 | [`src/client/surfaces.ts`](src/client/surfaces.ts) | 从 `?surface=panel\|settings\|history` 解析的界面注册表 |

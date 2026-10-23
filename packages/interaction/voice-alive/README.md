@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Give the shipped Web and Desktop profiles a voice panel Host service and a dedicated browser panel. The same dual-face row mounts `ctx.voiceAlive` in the Host and a client entry that renders only inside the panel document. The client stays inert in the main chat surface. The panel document boots the ordinary client kernel with a voice-only roster served from the package's own `dist/panel/`. The panel renders the monochrome orb and its two window controls; settings and history open as separate surfaces of the same document, which `?surface=` selects. The bundle layer composes the row over `dsh-base`.
+Give the shipped Web and Desktop profiles a voice panel Host service and a dedicated browser panel. The same dual-face row mounts `ctx.voiceAlive` in the Host and a client entry that renders only inside the panel document. The client stays inert in the main chat surface. The panel document boots the ordinary client kernel with a voice-only roster served from the package's own `dist/panel/`. The panel renders the monochrome orb and its two window controls; settings and history open as separate surfaces of the same document, which `?surface=` selects. The Host face also exposes the local Kokoro TTS engine (`createTtsEngine`), which streams sentence-sized 24 kHz mono WAV chunks from a `RunAsNode` child published as `./worker`. The bundle layer composes the row over `dsh-base`.
 
 ## Table of Contents
 
@@ -54,7 +54,8 @@ The panel is served as a static document on the shell origin, so no Host request
 
 | Source | Responsibility |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Host `VoiceAliveService` registered as `ctx.voiceAlive` |
+| [`src/index.ts`](src/index.ts) | Host `VoiceAliveService` registered as `ctx.voiceAlive`, plus the `createTtsEngine` host face |
+| [`src/engine/`](src/engine/) | Local Kokoro TTS engine, sentence splitting, and its `RunAsNode` worker |
 | [`src/client/index.ts`](src/client/index.ts) | Panel-document activation gate |
 | [`src/client/mount.tsx`](src/client/mount.tsx) | React root mount, URL-selected surface, and disposal |
 | [`src/client/surfaces.ts`](src/client/surfaces.ts) | Surface registry parsed from `?surface=panel\|settings\|history` |
