@@ -6,9 +6,15 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { apply, PANEL_DOCUMENT_ATTRIBUTE } from '../src/client/index.ts'
 
 let ctx: Context | undefined
+const originalGetContext = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'getContext')
 
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  // jsdom has no canvas backend; the panel's real orb tolerates a null context.
+  Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+    configurable: true,
+    value: vi.fn(() => null),
+  })
   document.documentElement.removeAttribute(PANEL_DOCUMENT_ATTRIBUTE)
   document.body.innerHTML = '<div id="root"><div data-dsh-boot=""></div></div>'
   window.history.replaceState(null, '', '/')
@@ -20,7 +26,11 @@ afterEach(async () => {
   document.body.innerHTML = ''
   document.documentElement.removeAttribute(PANEL_DOCUMENT_ATTRIBUTE)
   window.history.replaceState(null, '', '/')
+  if (originalGetContext !== undefined) {
+    Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', originalGetContext)
+  }
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 function panelRoot(): HTMLElement {
