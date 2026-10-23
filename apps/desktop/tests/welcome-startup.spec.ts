@@ -163,6 +163,13 @@ vi.mock('../src/welcome-window.ts', () => ({
       show: vi.fn(), focus: vi.fn(), webContents: { send: vi.fn() } }
   },
 }))
+// The voice panel window is independent of welcome onboarding and owns its own lifecycle.
+vi.mock('../src/voice-panel.ts', () => ({
+  VOICE_PANEL_PATH_PREFIX: '/voice',
+  createVoicePanel: vi.fn(),
+  resolveVoicePanelRoot: vi.fn(() => '/desktop-voice-panel'),
+  serveVoicePanelDocument: vi.fn(),
+}))
 
 afterEach(() => {
   vi.clearAllTimers()

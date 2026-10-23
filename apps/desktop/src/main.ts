@@ -63,6 +63,7 @@ import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
+import { createVoicePanel, resolveVoicePanelRoot, serveVoicePanelDocument, VOICE_PANEL_PATH_PREFIX } from './voice-panel.ts'
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => {}
@@ -695,6 +696,10 @@ async function main(): Promise<void> {
 
   protocol.handle(SCHEME, (request) => {
     const url = new URL(request.url)
+    // The voice panel document and its assets are shell-owned too, but ship with the voice package.
+    if (url.hostname === 'shell' && url.pathname.startsWith(`${VOICE_PANEL_PATH_PREFIX}/`)) {
+      return serveVoicePanelDocument(request, resolveVoicePanelRoot(resources.dsh))
+    }
     // Shell-owned documents live in the application bundle and never pass through the Host.
     if (url.hostname === 'shell') return serveWebDocument(request, join(app.getAppPath(),
       url.pathname === '/design-platform.css' ? 'lib/welcome' : 'renderer'))
@@ -1319,6 +1324,8 @@ async function main(): Promise<void> {
   })
 
   mainWindow = createMainWindow()
+  // The voice panel owns its chord and teardown; it never changes the primary window above.
+  createVoicePanel(app.getPath('userData'), () => quitting || shellInstallerOwnsQuit)
   if (typeof manifest !== 'object' || manifest === null) throw new Error('desktop policy: invalid application manifest')
   const developmentPolicy = app.isPackaged ? undefined : process.env.DSH_DESKTOP_MANDATORY_UPDATE_CONFIG
   const policyInput: unknown = app.isPackaged
