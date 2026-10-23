@@ -37,6 +37,7 @@
     "lib/worker.js",
     "lib/client.js",
     "dist/panel",
+    "instructions.md",
     "lib/asr-worker.js",
     "lib/tts-worker.js",
     "lib/types/**/*.d.ts"
@@ -65,6 +66,8 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-agent": "workspace:*",
+    "@deepseek-ai/dsh-agent-loop-testkit": "workspace:*",
     "@deepseek-ai/dsh-api-session-controller": "workspace:*",
     "@deepseek-ai/dsh-app-boot": "workspace:*",
     "@deepseek-ai/dsh-client-modules": "workspace:*",
