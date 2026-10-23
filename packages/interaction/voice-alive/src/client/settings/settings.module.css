@@ -94,7 +94,7 @@
 
 .paneLede {
   margin: var(--s-1) 0 0;
-  max-width: 46ch;
+  max-width: 60ch;
   color: var(--text-2);
   font-size: var(--fs-sm);
 }
