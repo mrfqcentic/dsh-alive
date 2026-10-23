@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-voice-alive",
-  "description": "Voice panel host daemon and its panel-only browser client",
+  "description": "Voice panel host daemon, its local speech engines, and its panel-only browser client",
   "version": "0.2.1-rc.3",
   "publishConfig": {
     "access": "public"
@@ -22,6 +22,10 @@
       "types": "./lib/types/client/index.d.ts",
       "default": "./lib/client.js"
     },
+    "./worker": {
+      "types": "./lib/types/engine/tts-worker.d.ts",
+      "default": "./lib/worker.js"
+    },
     "./panel/*": "./dist/panel/*",
     "./locale/*.json": "./locale/*.json",
     "./src/*": "./src/*",
@@ -30,6 +34,7 @@
   "files": [
     "locale/*.json",
     "lib/index.js",
+    "lib/worker.js",
     "lib/client.js",
     "dist/panel",
     "lib/types/**/*.d.ts"
@@ -45,6 +50,11 @@
     "watch": "tsdown --watch",
     "build:panel": "vite build --config panel/vite.config.ts && tsx scripts/assemble-panel.ts"
   },
+  "dependencies": {
+    "@huggingface/transformers": "3.8.1",
+    "kokoro-js": "^1.2.1",
+    "onnxruntime-node": "1.21.0"
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~"
   },
@@ -57,6 +67,7 @@
     "@vitejs/plugin-react": "^4.7.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "tsx": "^4.23.13",
     "vite": "^6.4.3"
   }
 }

@@ -8,6 +8,19 @@
 
 import { Service, type Context } from '@deepseek-ai/cordis'
 
+export { createTtsEngine, TTS_READY_TIMEOUT_MS } from './engine/tts.ts'
+export { TtsError } from './engine/tts-types.ts'
+export type {
+  TtsChunk,
+  TtsEngine,
+  TtsErrorCode,
+  TtsRequest,
+  TtsSpawnFn,
+  TtsSpawnOptions,
+  TtsStatus,
+  TtsWorkerProcess,
+} from './engine/tts-types.ts'
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     /** The voice panel daemon mounted by this row. */

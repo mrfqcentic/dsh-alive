@@ -2,7 +2,10 @@
   "extends": "../../../tsconfig.base.client.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "lib/types"
+    "outDir": "lib/types",
+    // The same project carries the Host engine (Node child processes) and the
+    // panel-only browser client; the aggregate picks it up from both graphs.
+    "types": ["node", "client-build-environment", "client-assets"]
   },
   "include": [
     "src"
