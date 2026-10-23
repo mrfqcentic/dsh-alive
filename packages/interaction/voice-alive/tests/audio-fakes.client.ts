@@ -1,6 +1,7 @@
 /** Deterministic capture and playback doubles for audio state machine tests; no hardware is touched. */
 import { vi, type Mock } from 'vitest'
 import { CaptureError } from '../src/client/audio/devices.ts'
+import type { EchoGuard } from '../src/client/audio/echo.ts'
 import type { PlaybackChunk, PlaybackController, PlaybackState } from '../src/client/audio/playback.ts'
 import type { CaptureController, SpeechSegment } from '../src/client/audio/types.ts'
 
@@ -97,9 +98,10 @@ interface FakeRun {
 
 /**
  * Build a playback controller whose queue is settled by the test.
+ * @param options - a playback bus the echo guard can tap, when the test uses one.
  * @returns the fake controller with its mocks and queue controls.
  */
-export function createFakePlayback(): FakePlayback {
+export function createFakePlayback(options: { echoReference?: AudioNode } = {}): FakePlayback {
   const enqueued: PlaybackChunk[] = []
   let run: FakeRun | null = null
   let level = 0
@@ -126,7 +128,7 @@ export function createFakePlayback(): FakePlayback {
       return { playing: run !== null, queued: run === null ? 0 : enqueued.length, level, deviceId: null }
     },
     onChange: () => () => {},
-    createEchoReference: () => null,
+    createEchoReference: () => options.echoReference ?? null,
   }
   return {
     controller,
@@ -172,4 +174,95 @@ export function speechSegment(id = 0, overrides: Partial<SpeechSegment> = {}): S
  */
 export function playbackChunk(id: string): PlaybackChunk {
   return { id, wav: new ArrayBuffer(0) }
+}
+
+/**
+ * Build constant-level 16 kHz PCM for one analysis block.
+ * @param level - normalized level in 0..1.
+ * @param length - samples in the block; defaults to one 20 ms frame.
+ * @returns the block.
+ */
+export function pcm(level: number, length = 320): Int16Array {
+  const samples = new Int16Array(length)
+  samples.fill(Math.round(level * 32767))
+  return samples
+}
+
+/** Reference analyser and the playback node it reads, all test-driven. */
+export interface FakeEchoReference {
+  /** Node to pass to `EchoGuard.attach`. */
+  readonly node: AudioNode
+  /** Level every later analyser read reports, normalized. */
+  level: number
+  /** Analyser the guard created on first attach. */
+  readonly analyser: AnalyserNode
+  /** Connections the guard made on the reference node. */
+  readonly connect: Mock
+  /** Disconnections the guard made on the reference node. */
+  readonly disconnect: Mock
+}
+
+/**
+ * Build a playback bus double whose analyser level the test sets directly.
+ * @returns the node, analyser, and connection mocks.
+ */
+export function createFakeEchoReference(): FakeEchoReference {
+  const analyser = Object.assign({} as AnalyserNode, {
+    fftSize: 0,
+    level: 0,
+    getFloatTimeDomainData(target: Float32Array) {
+      target.fill(analyser.level)
+    },
+  })
+  const context = Object.assign({} as BaseAudioContext, {
+    createAnalyser: () => analyser,
+  })
+  const connect = vi.fn()
+  const disconnect = vi.fn()
+  const node = Object.assign({} as AudioNode, { context, connect, disconnect })
+  return {
+    node,
+    connect,
+    disconnect,
+    analyser,
+    get level() { return analyser.level },
+    set level(next: number) { analyser.level = next },
+  }
+}
+
+/** One fake echo guard and the calls the machine made on it. */
+export interface FakeEchoGuard {
+  /** Guard passed to the machine. */
+  readonly guard: EchoGuard
+  /** Value `suppress` returns; tests set it to model echo or user speech. */
+  suppressed: boolean
+  readonly suppress: Mock<(frame: Int16Array) => boolean>
+  readonly noteSpoken: Mock<(text: string) => void>
+  readonly reject: Mock<(transcript: string) => boolean>
+  readonly attach: Mock<(reference: AudioNode | null) => void>
+  readonly reset: Mock<() => void>
+}
+
+/**
+ * Build an echo guard whose decisions and calls the test observes.
+ * @returns the guard with its mocks.
+ */
+export function createFakeEchoGuard(): FakeEchoGuard {
+  let suppressed = false
+  const suppress = vi.fn((_frame: Int16Array) => suppressed)
+  const noteSpoken = vi.fn((_text: string) => {})
+  const reject = vi.fn((_transcript: string) => false)
+  const attach = vi.fn((_reference: AudioNode | null) => {})
+  const reset = vi.fn(() => {})
+  const guard: EchoGuard = { suppress, noteSpoken, reject, attach, reset }
+  return {
+    guard,
+    suppress,
+    noteSpoken,
+    reject,
+    attach,
+    reset,
+    get suppressed() { return suppressed },
+    set suppressed(next: boolean) { suppressed = next },
+  }
 }

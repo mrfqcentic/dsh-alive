@@ -1,13 +1,17 @@
 /** Audio state machine: transitions, mute in every state, barge-in, failures, and teardown. */
 import { afterEach, expect, it, vi, type Mock } from 'vitest'
+import { createEchoGuard, type EchoGuard } from '../src/client/audio/echo.ts'
 import { createAudioMachine, type AudioMachine, type AudioMachineDeps, type AudioState } from '../src/client/audio/machine.ts'
 import type { PlaybackChunk } from '../src/client/audio/playback.ts'
 import type { SpeechSegment } from '../src/client/audio/types.ts'
 import { createPanelState, type PanelStateStore } from '../src/client/panel/state.ts'
 import {
   createFakeCapture,
+  createFakeEchoGuard,
+  createFakeEchoReference,
   createFakePlayback,
   namedError,
+  pcm,
   playbackChunk,
   speechSegment,
   type FakeCapture,
@@ -27,13 +31,21 @@ interface Harness {
 
 const machines: AudioMachine[] = []
 
-function setup(options: { muted?: boolean; transcript?: boolean } = {}): Harness {
+function setup(options: {
+  muted?: boolean
+  transcript?: boolean
+  echo?: EchoGuard
+  echoReference?: AudioNode
+} = {}): Harness {
   const capture = createFakeCapture()
-  const playback = createFakePlayback()
+  const playback = createFakePlayback(
+    options.echoReference === undefined ? {} : { echoReference: options.echoReference },
+  )
   const store = createPanelState(options.muted === false ? 'listening' : 'muted')
   const respond = vi.fn(async (_segment: SpeechSegment): Promise<readonly PlaybackChunk[]> => [])
   const deps: AudioMachineDeps = { capture: capture.controller, playback: playback.controller, store }
   if (options.transcript !== true) deps.respond = respond
+  if (options.echo !== undefined) deps.echo = options.echo
   const machine = createAudioMachine(deps)
   const states: AudioState[] = []
   machine.onState(state => states.push(state))
@@ -539,4 +551,69 @@ it('starts muted after stop until it is unmuted again', async () => {
   expect(h.machine.state).toBe('muted')
   h.machine.setMuted(false)
   expect(h.machine.state).toBe('listening')
+})
+
+it('attaches the playback reference, notes spoken text, and resets the echo guard', async () => {
+  const echo = createFakeEchoGuard()
+  const reference = createFakeEchoReference()
+  const h = setup({ muted: false, echo: echo.guard, echoReference: reference.node })
+  h.respond.mockResolvedValue([
+    { id: 'first', wav: new ArrayBuffer(0), text: 'hello there' },
+    playbackChunk('second'),
+  ])
+  await h.machine.start()
+  h.capture.emitSegment(speechSegment(1, { pcm: pcm(0.5) }))
+  await flush()
+  expect(h.machine.state).toBe('speaking')
+  expect(echo.attach).toHaveBeenLastCalledWith(reference.node)
+  expect(echo.noteSpoken).toHaveBeenCalledTimes(1)
+  expect(echo.noteSpoken).toHaveBeenCalledWith('hello there')
+
+  h.machine.setMuted(true)
+  expect(echo.reset).toHaveBeenCalledTimes(1)
+  h.machine.stop()
+  expect(echo.reset).toHaveBeenCalledTimes(2)
+  expect(echo.attach).toHaveBeenLastCalledWith(null)
+})
+
+it('keeps echoed segments out of barge-in and out of the tail before listening', async () => {
+  const reference = createFakeEchoReference()
+  const guard = createEchoGuard()
+  const h = setup({ muted: false, echo: guard, echoReference: reference.node })
+  h.respond.mockResolvedValue([playbackChunk('reply')])
+  await h.machine.start()
+  reference.level = 0.2
+  h.capture.emitSegment(speechSegment(1, { pcm: pcm(0.1) }))
+  await flush()
+  expect(h.machine.state).toBe('speaking')
+  expect(reference.connect).toHaveBeenCalledTimes(1)
+
+  // The reply's own echo: suppressed, so playback keeps going.
+  h.capture.emitSegment(speechSegment(2, { pcm: pcm(0.1) }))
+  expect(h.playback.stop).not.toHaveBeenCalled()
+  expect(h.machine.state).toBe('speaking')
+
+  // A genuine, energetic interruption still cuts the reply.
+  h.capture.emitSegment(speechSegment(3, { pcm: pcm(0.6) }))
+  expect(h.playback.stop).toHaveBeenCalledTimes(1)
+  expect(h.machine.state).toBe('thinking')
+  await flush()
+  expect(h.machine.state).toBe('speaking')
+
+  // After the reply drains, the tail rejects the room echo before a new turn.
+  h.playback.drain()
+  await flush()
+  expect(h.machine.state).toBe('listening')
+  reference.level = 0
+  let attempts = 0
+  while (h.machine.state === 'listening' && attempts < 20) {
+    h.capture.emitSegment(speechSegment(4 + attempts, { pcm: pcm(0) }))
+    attempts += 1
+  }
+  expect(h.machine.state).toBe('thinking')
+  expect(attempts).toBeGreaterThan(1)
+  await flush()
+  // The genuine segment that outlasted the tail opened the next turn.
+  expect(h.respond).toHaveBeenCalledTimes(3)
+  expect(h.machine.state).toBe('speaking')
 })

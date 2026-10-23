@@ -20,9 +20,16 @@
  * and queueing would delay a later barge-in behind a stale reply. A segment
  * while `speaking` is a barge-in: playback stops, the current turn is
  * cancelled, and the new turn starts immediately.
+ *
+ * An injected echo guard taps the playback bus and rejects blocks that match
+ * it, so the reply cannot open a turn for itself. The machine applies that
+ * check to every accepted segment and records the text of each played chunk;
+ * the frame-level half-duplex tap sits in the capture graph, where capture
+ * accepts `CaptureOptions.frameGate`.
  * @module @deepseek-ai/dsh-voice-alive/client/audio/machine
  */
 import type { PanelState, PanelStateStore } from '../panel/state.ts'
+import type { EchoGuard } from './echo.ts'
 import type { PlaybackChunk, PlaybackController } from './playback.ts'
 import type { CaptureController, SpeechSegment } from './types.ts'
 
@@ -43,6 +50,12 @@ export interface AudioMachineDeps {
    * @returns reply chunks in playback order; an empty reply returns to listening.
    */
   respond?: (segment: SpeechSegment) => Promise<readonly PlaybackChunk[]>
+  /**
+   * Keeps the reply out of capture. Absent leaves every segment ungated.
+   * Attached to the playback bus when a reply starts, fed the text of every
+   * chunk that carries one, reset on mute and stop.
+   */
+  echo?: EchoGuard
 }
 
 /** Observable audio state machine. */
@@ -73,8 +86,9 @@ export interface AudioMachine {
   toggleMute(): void
   /**
    * @returns the loudness in 0..1 for the active direction: playback level
-   * while `speaking`, otherwise 0. Capture level needs ticket 14's analyser;
-   * this method is the extension point where that reading attaches.
+   * while `speaking`, otherwise 0. Capture level needs a per-frame tap this
+   * machine does not own; this method is the extension point where that
+   * reading attaches.
    */
   getLevel(): number
   /**
@@ -152,6 +166,8 @@ class Machine implements AudioMachine {
     this.cancelTurn()
     this.clearRecovery()
     this.unwire()
+    this.deps.echo?.reset()
+    this.deps.echo?.attach(null)
     this.deps.capture.stop()
     this.deps.playback.stop()
     this.publish('muted')
@@ -163,6 +179,7 @@ class Machine implements AudioMachine {
     if (muted) {
       this.cancelTurn()
       this.clearRecovery()
+      this.deps.echo?.reset()
       this.deps.playback.stop()
       this.deps.capture.setMuted(true)
       this.publish('muted')
@@ -261,6 +278,9 @@ class Machine implements AudioMachine {
    */
   private accept(segment: SpeechSegment): void {
     if (!this.running || this.mutedValue) return
+    // A segment that matches the playback reference is the orb's own voice,
+    // including the tail after the last chunk drained.
+    if (this.deps.echo?.suppress(segment.pcm) === true) return
     if (this.current === 'thinking') return
     if (this.current === 'speaking') {
       this.cancelTurn()
@@ -331,7 +351,13 @@ class Machine implements AudioMachine {
       return
     }
     this.publish('speaking')
-    for (const chunk of chunks) this.deps.playback.enqueue(chunk)
+    for (const chunk of chunks) {
+      if (chunk.text !== undefined) this.deps.echo?.noteSpoken(chunk.text)
+      this.deps.playback.enqueue(chunk)
+    }
+    // The playback context opens on the first enqueue, so the reference exists
+    // only now; attaching earlier would tap nothing.
+    this.deps.echo?.attach(this.deps.playback.createEchoReference())
     const drained = await Promise.race([
       this.deps.playback.idle.then(
         () => true,

@@ -1,8 +1,10 @@
 /** Capture controller: fake Web Audio graph, framing, resampling, mute, devices, errors, and cleanup. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CaptureError, createCapture } from '../src/client/audio/capture.ts'
+import { createEchoGuard } from '../src/client/audio/echo.ts'
 import type { CaptureController, CaptureOptions, SpeechSegment, WordGate } from '../src/client/audio/types.ts'
 import { SAMPLE_RATE } from '../src/client/audio/vad.ts'
+import { createFakeEchoReference } from './audio-fakes.client.ts'
 
 /** One fake media stream track that records its ended listeners and stop calls. */
 class FakeTrack {
@@ -256,6 +258,7 @@ function measuredFrequency(segment: SpeechSegment): number {
 interface OpenOptions {
   deviceId?: string
   gate?: WordGate
+  frameGate?: (frame: Int16Array) => boolean
   reportedRate?: number
   getUserMedia?: (constraints: MediaStreamConstraints) => Promise<FakeStream>
 }
@@ -268,9 +271,10 @@ interface OpenOptions {
 async function openSession(options: OpenOptions = {}): Promise<Session> {
   if (options.reportedRate !== undefined) FakeContext.reportedRate = options.reportedRate
   const env = installEnvironment(options.getUserMedia)
-  const captureOptions: { deviceId?: string; gate?: WordGate } = {}
+  const captureOptions: CaptureOptions = {}
   if (options.deviceId !== undefined) captureOptions.deviceId = options.deviceId
   if (options.gate !== undefined) captureOptions.gate = options.gate
+  if (options.frameGate !== undefined) captureOptions.frameGate = options.frameGate
   const controller = createCapture(captureOptions)
   const segments: SpeechSegment[] = []
   const errors: CaptureError[] = []
@@ -411,6 +415,51 @@ describe('acquisition', () => {
     expect(env.getUserMedia).toHaveBeenCalledTimes(1)
     expect(controller.state).toBe('running')
     controller.stop()
+  })
+})
+
+describe('frame gate', () => {
+  it('mutes frames before segmentation when the gate reports echo', async () => {
+    const seen: number[] = []
+    const session = await openSession({
+      frameGate: (frame) => {
+        seen.push(frame.length)
+        return true
+      },
+    })
+    utter(session, 16000)
+    await tick()
+    expect(seen.length).toBeGreaterThan(0)
+    expect(seen.every(length => length === 320)).toBe(true)
+    expect(session.segments).toEqual([])
+  })
+
+  it('segments normally when the frame gate keeps the frames', async () => {
+    const session = await openSession({ frameGate: () => false })
+    utter(session, 16000)
+    await tick()
+    expect(session.segments).toHaveLength(1)
+  })
+
+  it('keeps playback out of segmentation and lets a louder interruption through', async () => {
+    const reference = createFakeEchoReference()
+    const guard = createEchoGuard()
+    guard.attach(reference.node)
+    reference.level = 0.2
+    const session = await openSession({ frameGate: frame => guard.suppress(frame) })
+    // Playback reaches the microphone at the level the guard predicts.
+    pushPcm(session, toneSamples(SAMPLE_RATE, 1.5, 220, 0.1))
+    await tick()
+    expect(session.segments).toEqual([])
+    // A louder utterance clears the predicted residual and is segmented.
+    pushPcm(session, toneSamples(SAMPLE_RATE, 1.2, 220, 0.6))
+    pushPcm(session, silenceSamples(SAMPLE_RATE, 1.4))
+    await tick()
+    expect(session.segments).toHaveLength(1)
+    // Muted frames still advance capture time; dropping them would restart the
+    // segment clock and lose the 300 ms calibration window to the interruption.
+    expect(session.segments[0]?.startedAt).toBeGreaterThanOrEqual(1300)
+    expect(session.segments[0]?.startedAt).toBeLessThan(1500)
   })
 })
 

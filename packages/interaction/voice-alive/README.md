@@ -134,7 +134,7 @@ The panel is served as a static document on the shell origin, so no Host request
 | [`src/client/surfaces/`](src/client/surfaces/) | One component per surface: panel, settings, history |
 | [`src/client/orb/`](src/client/orb/) | Monochrome orb canvas, palette, and motion math |
 | [`src/client/panel/`](src/client/panel/) | Panel orb state store, shell bridge, and window controls |
-| [`src/client/audio/`](src/client/audio/) | 16 kHz microphone capture, VAD segmentation, word gate, and input device enumeration; ordered WAV playback, output-device routing, output level, and the echo-reference node; the audio state machine that ties capture, playback, and mute together |
+| [`src/client/audio/`](src/client/audio/) | 16 kHz microphone capture, VAD segmentation, word gate, and input device enumeration; ordered WAV playback, output-device routing, output level, and the echo-reference node; the echo guard that cancels the playback reference, holds the half-duplex tail, and rejects self-transcription; the audio state machine that ties capture, playback, and mute together |
 | [`src/client/settings/`](src/client/settings/) | Five-tab settings frame and its pane placeholders |
 | [`src/client/history/`](src/client/history/) | History list, search, delete flow, and the `HistorySource` seam |
 | [`src/client/styles/`](src/client/styles/) | Design-system stylesheets copied from `voice-plugin/design/` |
@@ -185,8 +185,9 @@ Prefix-stable while the tool definitions are unchanged. Loading or unloading the
 - **Placeholder settings panes** — the five tabs switch, but each pane is an honest placeholder; the audio, shortcut, model, workspace, and privacy controls attach in later waves, with models, workspaces, and privacy in tickets 19–21.
 - **Fixture history** — the history window lists a fixed in-memory fixture through `createHistorySource`; the durable store replaces that factory in ticket 22.
 - **Local panel state** — the orb reads one client store ([`src/client/panel/state.ts`](src/client/panel/state.ts)) that the audio state machine drives.
+- **Echo guard not wired into the panel** — `createEchoGuard` is exported for the panel surface to own. Capture accepts the frame-level tap through `CaptureOptions.frameGate`, and the audio machine applies the segment-level backstop when it is given the guard; the panel constructs neither yet.
 - **Energy word gate** — the default gate decides from segment duration and level alone, so music, a steady tone, or sustained loud machinery can pass. It measures the closed segment, not the individual word: a 300 ms word inside a 560 ms segment passes, while a 150 ms word stays below the 450 ms minimum and is dropped. Ticket 11 replaces it with a transcript-based gate through the same injected `WordGate`.
-- **No real-microphone verification** — capture, worklet loading, resampling, and hot-plug are exercised against a fake Web Audio graph. Real hardware, browser permission prompts, and the macOS TCC path still need a human test.
+- **No real-microphone verification** — capture, worklet loading, resampling, hot-plug, reference cancellation, and barge-in are exercised against a fake Web Audio graph and synthetic PCM. Real speakers, a real microphone, browser permission prompts, and the macOS TCC path still need a human test; ticket 24 owns the acceptance matrix.
 - **Panel route is shell-owned** — this package emits `dist/panel/` with document-relative URLs, but the Desktop protocol handler must map `/voice/*` onto it. The Web server does not serve the panel.
 - **Shell-sized lazy assets** — the panel build carries the client kernel's code-split grammar and font assets, so `dist/panel/` is roughly 20 MB on disk. The panel never loads those chunks; they exist because the shell's static module table reaches them.
 

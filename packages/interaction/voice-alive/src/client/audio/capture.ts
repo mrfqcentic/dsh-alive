@@ -176,6 +176,8 @@ async function requestStream(deviceId: string | undefined): Promise<MediaStream>
   const audio: MediaTrackConstraints = {
     channelCount: 1,
     sampleRate: SAMPLE_RATE,
+    // Browser AEC is device-dependent and may be bypassed, so it complements
+    // the reference cancellation in `echo.ts` instead of replacing it.
     echoCancellation: true,
     noiseSuppression: true,
     autoGainControl: true,
@@ -307,6 +309,8 @@ class Capture implements CaptureController {
   private readonly segments = new Set<(segment: SpeechSegment) => void>()
   private readonly errors = new Set<(error: CaptureError) => void>()
   private readonly gate: WordGate
+  private readonly frameGate: ((frame: Int16Array) => boolean) | undefined
+  private readonly silence = new Int16Array(FRAME_SAMPLES)
   private readonly deviceId: string | undefined
   private generation = 0
   private runner: Promise<void> | undefined
@@ -317,10 +321,12 @@ class Capture implements CaptureController {
   /**
    * @param deviceId - exact input device id, or undefined for the system default.
    * @param gate - decision applied to every closed segment.
+   * @param frameGate - mute decision applied to every frame before segmentation.
    */
-  constructor(deviceId: string | undefined, gate: WordGate) {
+  constructor(deviceId: string | undefined, gate: WordGate, frameGate: ((frame: Int16Array) => boolean) | undefined) {
     this.deviceId = deviceId
     this.gate = gate
+    this.frameGate = frameGate
   }
 
   get state(): CaptureController['state'] {
@@ -433,7 +439,10 @@ class Capture implements CaptureController {
    */
   private receive(frame: Int16Array, token: number): void {
     if (token !== this.generation) return
-    for (const segment of this.segmenter.push(frame)) {
+    // Muting, not dropping, keeps the detector's frame clock and noise floor
+    // calibrated while playback masks the room.
+    const input = this.frameGate?.(frame) === true ? this.silence : frame
+    for (const segment of this.segmenter.push(input)) {
       this.offer({ ...segment, id: this.nextSegmentId }, token)
       this.nextSegmentId += 1
     }
@@ -490,11 +499,12 @@ class Capture implements CaptureController {
  *
  * Capture is always 16 kHz mono; a context that cannot run at that rate is
  * resampled. Omitting the gate uses the conservative energy and duration rule
- * from `vad.ts`.
- * @param options - input device selection and the word gate.
+ * from `vad.ts`. A frame gate mutes frames before segmentation, which is where
+ * the echo guard keeps playback out of the detector without stopping its clock.
+ * @param options - input device selection, the word gate, and the frame gate.
  * @returns a controller that starts idle and releases every resource on stop,
  * mute, or failure.
  */
 export function createCapture(options: CaptureOptions = {}): CaptureController {
-  return new Capture(options.deviceId, options.gate ?? { accept: energyWordGate })
+  return new Capture(options.deviceId, options.gate ?? { accept: energyWordGate }, options.frameGate)
 }
