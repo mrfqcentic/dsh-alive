@@ -9,6 +9,8 @@ import { join } from 'node:path'
 export interface DesktopSettings {
   readonly updates: {
     readonly allowTestAuthPopupWindow: boolean
+    /** Whether update availability checks may run on startup, focus, resume, or a timer; false keeps them manual. */
+    readonly autoCheck: boolean
   }
 }
 
@@ -24,7 +26,7 @@ function record(value: unknown): value is Record<string, unknown> {
 export function readDesktopSettings(userData: string): DesktopSettings {
   const directory = join(userData, 'desktop')
   const path = join(directory, 'settings.json')
-  const defaults: DesktopSettings = { updates: { allowTestAuthPopupWindow: false } }
+  const defaults: DesktopSettings = { updates: { allowTestAuthPopupWindow: false, autoCheck: false } }
   try {
     let raw: string
     try { raw = readFileSync(path, 'utf8') } catch (error) {
@@ -44,7 +46,11 @@ export function readDesktopSettings(userData: string): DesktopSettings {
     if (allow !== undefined && typeof allow !== 'boolean') {
       throw new Error('updates.allowTestAuthPopupWindow must be true or false')
     }
-    return { updates: { allowTestAuthPopupWindow: allow ?? false } }
+    const autoCheck = value.updates?.autoCheck
+    if (autoCheck !== undefined && typeof autoCheck !== 'boolean') {
+      throw new Error('updates.autoCheck must be true or false')
+    }
+    return { updates: { allowTestAuthPopupWindow: allow ?? false, autoCheck: autoCheck ?? false } }
   } catch (error) {
     try {
       console.warn(`desktop settings: ${path}: using defaults because settings could not be loaded`, error)

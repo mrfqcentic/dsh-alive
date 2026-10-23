@@ -22,8 +22,8 @@ it('creates a discoverable default file on first launch without touching other p
   const { userData, path } = fixture()
   rmSync(join(userData, 'desktop'), { recursive: true })
   writeFileSync(join(userData, 'keybindings.json'), 'existing shortcuts\n')
-  expect(readDesktopSettings(userData)).toEqual({ updates: { allowTestAuthPopupWindow: false } })
-  expect(readFileSync(path, 'utf8')).toBe('{\n  "updates": {\n    "allowTestAuthPopupWindow": false\n  }\n}\n')
+  expect(readDesktopSettings(userData)).toEqual({ updates: { allowTestAuthPopupWindow: false, autoCheck: false } })
+  expect(readFileSync(path, 'utf8')).toBe('{\n  "updates": {\n    "allowTestAuthPopupWindow": false,\n    "autoCheck": false\n  }\n}\n')
   expect(readFileSync(join(userData, 'keybindings.json'), 'utf8')).toBe('existing shortcuts\n')
 })
 
@@ -31,6 +31,7 @@ it.each(['{}', '{"updates": {}}', '{"other": 1, "updates": {"other": true}}'])('
   const { userData, path } = fixture()
   writeFileSync(path, raw)
   expect(readDesktopSettings(userData).updates.allowTestAuthPopupWindow).toBe(false)
+  expect(readDesktopSettings(userData).updates.autoCheck).toBe(false)
   expect(readFileSync(path, 'utf8')).toBe(raw)
 })
 
@@ -48,9 +49,21 @@ it('loads explicit opt-in and opt-out on the next read without changing an earli
   expect(readDesktopSettings(userData).updates.allowTestAuthPopupWindow).toBe(true)
 })
 
+it('reads the automatic update check opt-in independently of the test-auth popup', () => {
+  const { userData, path } = fixture()
+  for (const autoCheck of [true, false]) {
+    const raw = JSON.stringify({ updates: { autoCheck } })
+    writeFileSync(path, raw)
+    expect(readDesktopSettings(userData).updates.autoCheck).toBe(autoCheck)
+    expect(readDesktopSettings(userData).updates.allowTestAuthPopupWindow).toBe(false)
+    expect(readFileSync(path, 'utf8')).toBe(raw)
+  }
+})
+
 it.each(['', '{', 'null', '[]', '{"updates":null}', '{"updates":[]}',
   '{"updates":{"allowTestAuthPopupWindow":"false"}}', '{"updates":{"allowTestAuthPopupWindow":1}}',
-  '{"updates":{"allowTestAuthPopupWindow":null}}'])('reports invalid settings with their path and preserves the original: %s', (raw) => {
+  '{"updates":{"allowTestAuthPopupWindow":null}}', '{"updates":{"autoCheck":"true"}}',
+  '{"updates":{"autoCheck":0}}', '{"updates":{"autoCheck":null}}'])('reports invalid settings with their path and preserves the original: %s', (raw) => {
   const { userData, path } = fixture()
   writeFileSync(path, raw)
   expect(readDesktopSettings(userData).updates.allowTestAuthPopupWindow).toBe(false)
