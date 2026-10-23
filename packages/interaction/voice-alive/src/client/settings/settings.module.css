@@ -189,3 +189,104 @@
   font-size: var(--fs-xs);
   line-height: var(--lh-base);
 }
+
+/* ── Models pane ──────────────────────────────────────────────────────── */
+
+.banner {
+  margin: 0 0 var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+}
+
+.modelList {
+  display: grid;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.model {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.modelHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.modelName {
+  font-size: var(--fs-base);
+  font-weight: var(--weight-medium);
+}
+
+.modelState {
+  flex: 0 0 auto;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.checkMark {
+  margin-left: var(--s-1);
+  color: var(--text);
+}
+
+.modelTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.modelMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.modelMeta div {
+  display: flex;
+  gap: var(--s-1);
+}
+
+.modelMeta dt::after {
+  content: ':';
+}
+
+.modelMeta dd {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.modelProgress {
+  display: grid;
+  gap: var(--s-1);
+}
+
+.modelBytes {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+}
+
+.errorText {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}

@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与专用浏览器面板。面板以来自自身 `dist/panel/` 的语音专用名册启动客户端内核，渲染单色 Orb 与窗口控件，并把 settings 与 history 作为由 `?surface=` 选择的界面打开。Host 在 `ELECTRON_RUN_AS_NODE` worker 中运行两个语音引擎：`createAsrEngine` 用 Whisper 或 Parakeet 转写，`createTtsEngine` 流式输出 Kokoro 分块，`createEngineSupervisor` 为每类引擎持有恰好一个模型并报告健康状态。Host 配置行注册四个 conductor 工具，用于绑定新建或恢复的会话，并在重启后恢复该绑定。Bundle 层把这条配置行组合到 `dsh-base` 之上。
+为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与专用浏览器面板。面板以来自自身 `dist/panel/` 的语音专用名册启动客户端内核，渲染单色 Orb 与窗口控件，并把 settings 与 history 作为由 `?surface=` 选择的界面打开。Host 在 `ELECTRON_RUN_AS_NODE` worker 中运行两个语音引擎：`createAsrEngine` 用 Whisper 或 Parakeet 转写，`createTtsEngine` 流式输出 Kokoro 分块，`createEngineSupervisor` 为每类引擎持有恰好一个模型并报告健康状态。Host 配置行注册四个 conductor 工具，用于绑定新建或恢复的会话，并在重启后恢复该绑定。Bundle 层把这条配置行组合到 `dsh-base` 之上。Host 还拥有该 profile 的固定版本模型目录：`createModelStore` 下载并校验 Whisper、Parakeet 与 Kokoro 权重，并报告语音层所依赖的就绪状态。
 
 ## 目录
 
@@ -105,6 +105,22 @@ await supervisor.shutdown()
 
 `configure` 逐引擎切换模型：加载失败的引擎会以 `error` 状态显式卸载，而不是保留之前的模型，同时另一个引擎继续服务。每个引擎有各自有界的等待队列，因此转写队列满不会延误语音输出。`health` 报告 `status`、`lastErrorCode`、`lastSuccessAt` 与 `restarts`；`restart('asr' | 'tts')` 用已应用的模型选择重载其中一个引擎。崩溃的 worker 被限制在所属引擎内，并在下一次任务时重新启动；`shutdown` 是幂等的。
 
+### 模型存储
+
+`ctx.voiceAlive.models` 是该 profile 的模型存储。它读取 [`src/models/catalog.ts`](src/models/catalog.ts) 中固定版本的目录，把每个文件下载到暂存目录，校验固定的字节数与 SHA-256，只有在每个文件都匹配后才把整个目录改名就位。重试会续传 `.part` 文件；校验和不匹配时则删除它们，而不是续传已经错误的字节。
+
+```ts
+import { configureSupervisor, createEngineSupervisor, createModelStore, voiceModelsRoot } from '@deepseek-ai/dsh-voice-alive'
+
+const supervisor = createEngineSupervisor()
+const store = createModelStore({ root: voiceModelsRoot('/home/you/.dsh') })
+await store.initialize()
+await store.download('kokoro')
+await configureSupervisor(store, supervisor)
+```
+
+在 Kokoro 与一个识别器都通过校验之前，`selection()` 返回 null，而 `configureSupervisor` 在监督器加载任何内容之前就会拒绝，因此语音不会在不完整的安装上启动。`activate('whisper-base' | 'parakeet-v3')` 选择识别器：未安装的已选模型会阻断就绪状态，而不会改为运行另一个模型。仅支持 Apple Silicon；其他平台的主机会报告 `unsupported-platform` 且不下载任何内容。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -128,6 +144,9 @@ await supervisor.shutdown()
 | [`src/engine/tts-worker.ts`](src/engine/tts-worker.ts) | TTS Worker：Kokoro 合成与 stdout 上的 WAV 帧 |
 | [`src/engine/supervisor.ts`](src/engine/supervisor.ts) | 引擎监督器：模型选择、按引擎的串行通道与队列、健康、重启、崩溃隔离与关闭 |
 | [`src/engine/worker.ts`](src/engine/worker.ts) | 单一 `./worker` 分发器：校验角色并加载 ASR 或 TTS worker |
+| [`src/models/catalog.ts`](src/models/catalog.ts) | 固定版本目录：按修订固定的 URL、精确字节数、每个文件的 SHA-256、许可证，以及各引擎读取的目录布局 |
+| [`src/models/host/`](src/models/host/) | 模型存储：续传与重启策略、校验和验证、原子就位、就绪状态与监督器门禁 |
+| [`src/models/types.ts`](src/models/types.ts) | 两个面共享的目录、状态、就绪与选择类型 |
 | [`src/client/index.ts`](src/client/index.ts) | 面板文档激活判定 |
 | [`src/client/mount.tsx`](src/client/mount.tsx) | React 根挂载、按 URL 选择界面与释放 |
 | [`src/client/surfaces.ts`](src/client/surfaces.ts) | 从 `?surface=panel\|settings\|history` 解析的界面注册表 |
@@ -181,8 +200,9 @@ await supervisor.shutdown()
 
 - **监督器尚未接入守护进程** — `VoiceAliveService` 仍无音频状态；`createEngineSupervisor` 已拥有两个导出的引擎，音频界面将在后续工单中接入。
 - **conductor 绑定尚未持久化** — conductor 通过 `VoiceBindingTarget` 记录绑定，但配置行尚未把自己的持久化绑定存储安装到该接收端，因此 `ctx.voiceConductor.currentBinding` 会在重启后丢失。
-- **不捆绑权重** — 两个引擎都读取调用方提供的模型目录；下载并校验 Whisper、Parakeet 或 Kokoro 权重属于工单 19 的职责，因此在该目录存在之前 `load` 会拒绝。
-- **占位 settings 面板** — 五个标签页可以切换，但每个面板都是如实的占位实现；音频、快捷键、模型、工作区与隐私控件在后续波次中接入，其中模型、工作区与隐私属于工单 19–21。
+- **不捆绑权重** — 包内不含任何模型字节。Models 面板把 Whisper、Parakeet 与 Kokoro 权重下载并校验到 profile 中；两个引擎仍加载调用方提供的目录，目录缺失时拒绝加载。
+- **模型存储尚无 shell 桥接** — Models 面板读取 `window.dshVoiceModels`，在 Desktop preload 尚未暴露 Host 存储时渲染未连接状态；`ctx.voiceAlive.models` 是桥接将要调用的 Host 侧。
+- **四个占位 settings 面板** — 音频、快捷键、工作区与隐私仍是如实的占位实现；Models 面板呈现模型存储的目录状态。
 - **Fixture 历史** — 历史窗口通过 `createHistorySource` 列出一份固定的内存 Fixture；持久化存储将在工单 22 中替换该工厂。
 - **本地面板状态** — Orb 读取一个客户端存储（[`src/client/panel/state.ts`](src/client/panel/state.ts)），由音频状态机驱动。
 - **回声防护尚未接入面板** — `createEchoGuard` 已导出，供面板界面拥有。采集通过 `CaptureOptions.frameGate` 接受帧级抽头，音频状态机在拿到防护时应用分段级兜底；面板目前两者都不构造。
