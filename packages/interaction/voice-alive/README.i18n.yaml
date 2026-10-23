@@ -9,8 +9,8 @@
   en: ff1b0d4a0a52a4b0
   zh: 464e8f9970f66eb0
 /deepseek-ai-dsh-voice-alive/summary:
-  en: d6847a3db68cdedc
-  zh: 4df571a4b34d0a65
+  en: 40d3bfb6aba04ac0
+  zh: d116586d9bad28a0
 /deepseek-ai-dsh-voice-alive/table-of-contents:
   en: d152484eb41ac6b4
   zh: 364c80ee00a374ff
@@ -26,6 +26,9 @@
 /deepseek-ai-dsh-voice-alive/use-this-package/conductor-tools:
   en: 2e8b7e66da19a7b2
   zh: 30e9a514deeeb404
+/deepseek-ai-dsh-voice-alive/use-this-package/voice-instructions:
+  en: a0cbf3525c32926b
+  zh: 277f208266423f3b
 /deepseek-ai-dsh-voice-alive/use-this-package/session-binding:
   en: bc024a322e14c462
   zh: ca1cfcff5d5340f5
@@ -39,8 +42,8 @@
   en: b42e6002f4f4c531
   zh: 0702c54c9cc7203b
 /deepseek-ai-dsh-voice-alive/understand-the-implementation:
-  en: 7b58879f7b464403
-  zh: e7e979245606288d
+  en: deca181781ee14ea
+  zh: f79d63029d61be03
 /deepseek-ai-dsh-voice-alive/further-exploration:
   en: 0691097235e87dca
   zh: f3253982a9f1db12
@@ -59,6 +62,18 @@
 /deepseek-ai-dsh-voice-alive/model-experience/conductor-tools/kv-cache-effect:
   en: 686014595899d3d7
   zh: 5dbd22a1ab917724
+/deepseek-ai-dsh-voice-alive/model-experience/voice-instructions:
+  en: c8f7f20690b53a0c
+  zh: dc7f6cf5776afebb
+/deepseek-ai-dsh-voice-alive/model-experience/voice-instructions/what-the-model-sees:
+  en: 6ce0b2a49f4a74d7
+  zh: e7bf7d28d0ba80e2
+/deepseek-ai-dsh-voice-alive/model-experience/voice-instructions/token-effect:
+  en: 91088218eb53728f
+  zh: 0bcd97a3d1650f9d
+/deepseek-ai-dsh-voice-alive/model-experience/voice-instructions/kv-cache-effect:
+  en: 3fb31701e9ab3b5b
+  zh: f72befcb37e5be56
 /deepseek-ai-dsh-voice-alive/known-limitations-and-deferred-work:
   en: a9c44b7f0d930ee2
   zh: 1fe238d903138fdb

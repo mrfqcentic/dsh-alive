@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与专用浏览器面板。面板以来自自身 `dist/panel/` 的语音专用名册启动客户端内核，渲染单色 Orb 与窗口控件，并把 settings 与 history 作为由 `?surface=` 选择的界面打开。Host 在 `ELECTRON_RUN_AS_NODE` worker 中运行两个语音引擎：`createAsrEngine` 用 Whisper 或 Parakeet 转写，`createTtsEngine` 流式输出 Kokoro 分块，`createEngineSupervisor` 为每类引擎持有恰好一个模型并报告健康状态。Host 配置行注册四个 conductor 工具，用于绑定新建或恢复的会话，并在重启后恢复该绑定。Bundle 层把这条配置行组合到 `dsh-base` 之上。
+为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与专用浏览器面板。面板以来自自身 `dist/panel/` 的语音专用名册启动客户端内核，渲染单色 Orb 与窗口控件，并把 settings 与 history 作为由 `?surface=` 选择的界面打开。Host 在 `ELECTRON_RUN_AS_NODE` worker 中运行两个语音引擎：`createAsrEngine` 用 Whisper 或 Parakeet 转写，`createTtsEngine` 流式输出 Kokoro 分块，`createEngineSupervisor` 为每类引擎持有恰好一个模型并报告健康状态。Host 配置行注册四个 conductor 工具，用于绑定新建或恢复的会话，并在重启后恢复该绑定；它还安装语音策略，让回答保持可朗读的形态，并让每次切换都以工具结果为依据。Bundle 层把这条配置行组合到 `dsh-base` 之上。
 
 ## 目录
 
@@ -47,6 +47,12 @@ Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带
 Host 配置行在 `ctx.tools` 上注册四个普通工具。`voice_list_workspaces` 报告每个工作区的 id、标题、路径与会话数。`voice_open_workspace` 把面板绑定到工作区中最近一个未归档会话，或新建一个；`voice_new_session` 新建并绑定一个全新会话；`voice_resume_session` 绑定指定会话或最近的会话。每个绑定工具按精确标题、目录路径或路径末段解析工作区；名称只部分匹配或对应多个工作区时返回候选，而不是自行选择。失败是类型化且明确的：未知工作区、缺少会话、已归档会话与 subagent 会话各自返回一个错误码，且不改变绑定。
 
 conductor 通过 `VoiceBindingTarget` 接收端写入每一次完成的绑定；最后一次被接受的绑定可从 `ctx.voiceConductor.currentBinding` 读取。
+
+### 语音指令
+
+[`instructions.md`](instructions.md) 是 Host 配置行安装为 `voice:policy` 提示词段落的策略。它说明面板是单个会话的遥控器，要求回答为一到两句可朗读的话且不含列表、代码或 Markdown，并列出四个 conductor 工具及各自的参数：猜测工作区之前先列出工作区，给 `voice_open_workspace` 传入明确的 `mode`，用 `voice_new_session` 新建会话，用 `voice_resume_session` 继续会话。名称含糊时通过询问候选来回答；工具失败时如实报告，而不是声称已切换。会话 id、标题与路径来自工具结果，Audio 工作区是默认归宿。
+
+该段落只在参与装配的 Agent 正是已绑定会话时渲染，因此同时提供聊天界面的部署仍保留其常规提示词。`instructions.md` 缺失或为空会让配置行激活失败，而不是让语音面板在没有策略的情况下工作。
 
 ### 会话绑定
 
@@ -118,6 +124,8 @@ await supervisor.shutdown()
 | 源码 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | 注册为 `ctx.voiceAlive` 的 Host `VoiceAliveService`，以及导出的 ASR、TTS、监督器与绑定入口 |
+| [`instructions.md`](instructions.md) | 由配置行安装为 `voice:policy` 提示词段落的语音策略文本 |
+| [`src/instructions.ts`](src/instructions.ts) | 指令资源的读取与已绑定会话的提示词段落 |
 | [`src/conductor/tools.ts`](src/conductor/tools.ts) | Host conductor 服务：四个工作区与会话工具、它们的类型化结果，以及绑定接收端 |
 | [`src/binding/`](src/binding/) | 持久化的会话绑定、启动恢复与 Audio 工作区回退 |
 | [`src/engine/asr.ts`](src/engine/asr.ts) | Host ASR 引擎：启动、握手、串行队列、空闲关闭与类型化失败 |
@@ -174,6 +182,20 @@ await supervisor.shutdown()
 #### KV Cache effect
 
 在工具定义不变时前缀稳定。加载或卸载该配置行会改变工具块，并可能从第一个变化的 schema token 起使复用失效。
+
+### 语音指令
+
+#### What the model sees
+
+只在面板所绑定的会话中看到 `voice:policy` 段落文本，无论该绑定来自启动恢复还是已完成的 conductor 切换。它列出四个 conductor 工具及各自的参数，并写明回答规则：一到两句可朗读的话，不含列表、代码或 Markdown。
+
+#### Token effect
+
+绑定期间，该会话的系统提示词在每个请求中都含约 340 词的固定区块。其他会话装配出的是空段落，渲染后不占任何内容。
+
+#### KV Cache effect
+
+在策略文本与绑定不变时前缀稳定。把面板切换到另一会话会在该会话的下一次请求中加入该区块，并从先前的会话中移除。
 
 ## 已知限制与后续工作
 

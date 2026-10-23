@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Give the shipped Web and Desktop profiles a voice panel Host service and a dedicated browser panel. The panel boots the client kernel with a voice-only roster from its `dist/panel/`, renders the monochrome orb and window controls, and opens settings and history as `?surface=` surfaces. The Host runs both speech engines in `ELECTRON_RUN_AS_NODE` workers: `createAsrEngine` transcribes with Whisper or Parakeet, `createTtsEngine` streams Kokoro chunks, and `createEngineSupervisor` holds one model per engine and reports health. The Host row registers four conductor tools that bind a new or resumed session and restore it on restart. The bundle composes the row over `dsh-base`.
+Give the shipped Web and Desktop profiles a voice panel Host service and a dedicated browser panel. The panel boots the client kernel with a voice-only roster from its `dist/panel/`, renders the monochrome orb and window controls, and opens settings and history as `?surface=` surfaces. The Host runs both speech engines in `ELECTRON_RUN_AS_NODE` workers: `createAsrEngine` transcribes with Whisper or Parakeet, `createTtsEngine` streams Kokoro chunks, and `createEngineSupervisor` holds one model per engine and reports health. The Host row registers four conductor tools that bind a new or resumed session and restore it on restart, and installs the voice policy that keeps replies spoken-shaped and every switch tied to a tool result. The bundle composes the row over `dsh-base`.
 
 ## Table of Contents
 
@@ -47,6 +47,12 @@ The Host half registers `ctx.voiceAlive`. The browser half activates only when t
 The Host row registers four ordinary tools on `ctx.tools`. `voice_list_workspaces` reports each workspace's id, title, path, and session count. `voice_open_workspace` binds the panel to the most recent unarchived session in a workspace or creates one, `voice_new_session` creates and binds a fresh session, and `voice_resume_session` binds a named or the most recent session. Each binding tool resolves a workspace by exact title, directory path, or final path segment and returns candidates for a partial or shared name instead of choosing one. Failures are typed and explicit: an unknown workspace, a missing session, an archived session, and a subagent session each report their own code without changing the binding.
 
 The conductor writes each completed binding through the `VoiceBindingTarget` sink; the last accepted binding is readable as `ctx.voiceConductor.currentBinding`.
+
+### Voice instructions
+
+[`instructions.md`](instructions.md) is the policy the Host row installs as the `voice:policy` prompt section. It states that the panel is a remote control for one Session, requires one or two spoken sentences with no lists, code, or Markdown, and names the four conductor tools with the arguments each one takes: list workspaces before guessing one, pass an explicit `mode` to `voice_open_workspace`, start a fresh Session with `voice_new_session`, and continue one with `voice_resume_session`. Ambiguous names are answered by asking which candidate; a failed tool is reported instead of a claimed switch. Session ids, titles, and paths come from tool results, and the Audio workspace is the default home.
+
+The section renders only while the assembled Agent is the bound Session, so a deployment that also serves the chat surface keeps its ordinary prompt. A missing or empty `instructions.md` fails the row's activation instead of serving a voice panel with no policy.
 
 ### Session binding
 
@@ -118,6 +124,8 @@ The panel is served as a static document on the shell origin, so no Host request
 | Source | Responsibility |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Host `VoiceAliveService` registered as `ctx.voiceAlive`, plus the exported ASR, TTS, supervisor, and binding entry points |
+| [`instructions.md`](instructions.md) | Voice policy text the row installs as the `voice:policy` prompt section |
+| [`src/instructions.ts`](src/instructions.ts) | Instruction asset read and the bound-Session prompt section |
 | [`src/conductor/tools.ts`](src/conductor/tools.ts) | Host conductor service: the four workspace and session tools, their typed results, and the binding sink |
 | [`src/binding/`](src/binding/) | Durable Session binding, startup restore, and the Audio workspace fallback |
 | [`src/engine/asr.ts`](src/engine/asr.ts) | Host ASR engine: spawn, handshake, serial queue, idle shutdown, typed failures |
@@ -174,6 +182,20 @@ A fixed schema cost on every request from a Session in a deployment that loads t
 #### KV Cache effect
 
 Prefix-stable while the tool definitions are unchanged. Loading or unloading the row changes the tool block and can invalidate reuse from the first changed schema token.
+
+### Voice instructions
+
+#### What the model sees
+
+The `voice:policy` section text only in the Session the panel is bound to, whether the startup restore or a completed conductor switch bound it. It names the four conductor tools with the arguments each takes and states the reply rules: one or two spoken sentences with no lists, code, or Markdown.
+
+#### Token effect
+
+A fixed block of roughly 340 words in the bound Session's system prompt on every request while that Session stays bound. Every other Session assembles an empty section, which renders to nothing.
+
+#### KV Cache effect
+
+Prefix-stable while the policy text and the binding are unchanged. Switching the panel to another Session adds the block to that Session's next request and removes it from the previous one.
 
 ## Known Limitations and Deferred Work
 
