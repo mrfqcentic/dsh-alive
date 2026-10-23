@@ -1325,7 +1325,8 @@ async function main(): Promise<void> {
 
   mainWindow = createMainWindow()
   // The voice panel owns its chord and teardown; it never changes the primary window above.
-  createVoicePanel(app.getPath('userData'), () => quitting || shellInstallerOwnsQuit)
+  createVoicePanel(app.getPath('userData'), () => quitting || shellInstallerOwnsQuit,
+    () => hostUrl === undefined || hostCookie === undefined ? undefined : { url: hostUrl, cookie: hostCookie })
   if (typeof manifest !== 'object' || manifest === null) throw new Error('desktop policy: invalid application manifest')
   const developmentPolicy = app.isPackaged ? undefined : process.env.DSH_DESKTOP_MANDATORY_UPDATE_CONFIG
   const policyInput: unknown = app.isPackaged

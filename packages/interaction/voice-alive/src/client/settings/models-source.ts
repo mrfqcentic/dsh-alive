@@ -1,14 +1,15 @@
 /**
  * Model catalog data seat for the Models pane.
  *
- * The pane renders {@link ModelCatalogSource}; the Host model store answers
- * through the Desktop shell's `window.dshVoiceModels` bridge. The shell ships
- * that bridge independently of this surface, so it is detected and version
- * checked on every read, and a browser tab without it renders the disconnected
- * state instead of pretending a model is installed.
+ * The pane renders {@link ModelCatalogSource}; the shell's preload owns the
+ * `window.dshVoiceModels` bridge. The shell forwards every read and action to
+ * the Host model routes and pushes each store change, so the pane never polls
+ * and holds no state the Host did not report.
  *
  * The bridge payload crosses a process boundary, so it is validated here and a
- * malformed frame is dropped rather than rendered.
+ * malformed frame is dropped rather than rendered. A bridge that answers no
+ * store is reported as unsupported, which keeps the pane's disconnected state
+ * honest instead of showing an empty catalog as if the Host had none.
  * @module @deepseek-ai/dsh-voice-alive/client/settings/models-source
  */
 import type { ModelKind } from '../../models/types.ts'
@@ -48,10 +49,14 @@ export interface ModelRowView {
   readonly failure: ModelRowFailure | null
 }
 
-/** Whether the voice layer may run. */
+/** Whether the voice layer may run, and which entries satisfy the required set. */
 export interface ModelReadinessView {
   /** True only when the required set is verified. */
   readonly ready: boolean
+  /** The active or default recognizer, or null when none is ready. */
+  readonly asr: string | null
+  /** The active or default synthesizer, or null when none is ready. */
+  readonly tts: string | null
   /** Why the voice layer is blocked, or null when it is ready. */
   readonly failure: ModelRowFailure | null
 }
@@ -64,12 +69,15 @@ export interface ModelSnapshot {
   readonly readiness: ModelReadinessView
 }
 
-/** Methods the Desktop preload exposes on `window.dshVoiceModels`. */
+/** Methods the shell preload exposes on `window.dshVoiceModels`. */
 export interface VoiceModelsBridgeApi {
   /** Bridge protocol version the shell implements. */
   readonly protocolVersion?: number
-  /** @returns the current rows and readiness. */
-  state?(): Promise<ModelSnapshot>
+  /**
+   * Read the current rows and readiness.
+   * @returns the snapshot, or null when the Host serves no model store.
+   */
+  state?(): Promise<ModelSnapshot | null>
   /** @param listener - receives every pushed snapshot. @returns function that stops observing. */
   subscribe?(listener: (snapshot: ModelSnapshot) => void): () => void
   /** @param id - catalog entry to download. @returns completion of the request. */
@@ -78,6 +86,8 @@ export interface VoiceModelsBridgeApi {
   cancel?(id: string): Promise<void>
   /** @param id - catalog entry to remove. @returns completion of the request. */
   remove?(id: string): Promise<void>
+  /** @param id - ready catalog entry readiness should use for its kind. @returns completion of the request. */
+  activate?(id: string): Promise<void>
 }
 
 declare global {
@@ -90,10 +100,10 @@ declare global {
 /** Protocol version this pane understands. */
 export const MODELS_PROTOCOL_VERSION = 1
 
-/** Snapshot shown before the Host answered, and whenever no bridge exists. */
+/** Snapshot shown before the Host answered, whenever no bridge exists, and after it reported none. */
 const EMPTY_SNAPSHOT: ModelSnapshot = Object.freeze({
   rows: Object.freeze([]),
-  readiness: Object.freeze({ ready: false, failure: null }),
+  readiness: Object.freeze({ ready: false, asr: null, tts: null, failure: null }),
 })
 
 /** Marker distinguishing a malformed field from a legitimately absent one. */
@@ -110,6 +120,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /** @param value - decoded state field. @returns whether it is one of the five row states. */
 function isRowState(value: unknown): value is ModelRowState {
   return value === 'absent' || value === 'downloading' || value === 'verifying' || value === 'ready' || value === 'error'
+}
+
+/** @param value - decoded catalog id field. @returns whether it is an id or an explicit absence. */
+function isIdOrNull(value: unknown): value is string | null {
+  return value === null || typeof value === 'string'
 }
 
 /**
@@ -162,14 +177,17 @@ export function parseSnapshot(value: unknown): ModelSnapshot | null {
   }
   const ready = value.readiness.ready
   if (typeof ready !== 'boolean') return null
+  const asr = value.readiness.asr
+  const tts = value.readiness.tts
+  if (!isIdOrNull(asr) || !isIdOrNull(tts)) return null
   const failure = parseFailure(value.readiness.failure)
   if (failure === INVALID) return null
-  return { rows, readiness: { ready, failure } }
+  return { rows, readiness: { ready, asr, tts, failure } }
 }
 
 /** Read and act on the model catalog the Host serves. */
 export interface ModelCatalogSource {
-  /** Whether the shell exposes a compatible bridge right now. */
+  /** Whether the shell bridge reaches a Host that serves the model store. */
   readonly supported: boolean
   /** @returns the latest snapshot; the empty snapshot before the Host answered. */
   snapshot(): ModelSnapshot
@@ -181,16 +199,19 @@ export interface ModelCatalogSource {
   cancel(id: string): void
   /** @param id - catalog entry to remove. @returns completion of the request. */
   remove(id: string): Promise<void>
+  /** @param id - ready catalog entry readiness should use for its kind. @returns completion of the request. */
+  activate(id: string): Promise<void>
 }
 
 /**
  * Build the catalog source over one shell API reader.
  *
  * The first subscriber asks the Host for its current state; later snapshots
- * arrive through the bridge subscription. A rejected request means the channel
- * is gone, so the pane keeps its last snapshot instead of surfacing a raw
- * channel error. Action rejections are dropped for the same reason: the Host
- * pushes every row failure as state.
+ * arrive through the bridge subscription, and the subscription is released
+ * with the last subscriber. A rejected or empty answer means the Host serves
+ * no store, so the pane renders its disconnected state instead of an empty
+ * catalog. A rejected action is dropped for the same reason: the Host pushes
+ * every row failure as state, and this seat has no second error surface.
  * @param read - returns the current API, normally from `window`.
  * @returns the source the Models pane renders.
  */
@@ -199,6 +220,7 @@ export function createModelCatalogSource(
 ): ModelCatalogSource {
   const listeners = new Set<() => void>()
   let snapshot = EMPTY_SNAPSHOT
+  let absent = false
   let detach: (() => void) | undefined
   let requested = false
 
@@ -212,22 +234,51 @@ export function createModelCatalogSource(
     for (const listener of [...listeners]) listener()
   }
 
+  const missing = (): void => {
+    absent = true
+    publish(EMPTY_SNAPSHOT)
+  }
+
   const accept = (value: unknown): void => {
     const parsed = parseSnapshot(value)
-    if (parsed !== null) publish(parsed)
+    if (parsed === null) return
+    absent = false
+    publish(parsed)
   }
 
   const request = (api: VoiceModelsBridgeApi): void => {
     if (requested) return
     requested = true
     if (typeof api.state !== 'function') return
-    void api.state().then(accept, () => {
-      // The channel closed before it answered; the pane keeps rendering the empty snapshot.
+    void api.state().then((value) => {
+      if (value === null) {
+        missing()
+        return
+      }
+      const parsed = parseSnapshot(value)
+      if (parsed === null) missing()
+      else accept(parsed)
+    }, () => {
+      // The Host route is gone: report it the same way as a Host that serves no store.
+      missing()
+    })
+  }
+
+  const send = (
+    api: VoiceModelsBridgeApi | undefined,
+    action: 'download' | 'remove' | 'activate',
+    id: string,
+  ): Promise<void> => {
+    if (api === undefined) return Promise.resolve()
+    const method = api[action]
+    if (method === undefined) return Promise.resolve()
+    return method.call(api, id).catch(() => {
+      // The Host pushes every row failure as state; a closed channel has no second surface.
     })
   }
 
   return {
-    get supported() { return current() !== undefined },
+    get supported() { return !absent && current() !== undefined },
     snapshot() { return snapshot },
     subscribe(listener) {
       listeners.add(listener)
@@ -243,22 +294,24 @@ export function createModelCatalogSource(
         detach?.()
         detach = undefined
         requested = false
+        absent = false
       }
     },
     download(id) {
-      const api = current()
-      return typeof api?.download === 'function' ? api.download(id).catch(() => {}) : Promise.resolve()
+      return send(current(), 'download', id)
     },
     cancel(id) {
       const api = current()
       if (typeof api?.cancel !== 'function') return
-      void api.cancel(id).catch(() => {
-        // The channel closed before the request arrived; the next snapshot reports the state.
+      void api.cancel.call(api, id).catch(() => {
+        // The Host pushes every row failure as state; a closed channel has no second surface.
       })
     },
     remove(id) {
-      const api = current()
-      return typeof api?.remove === 'function' ? api.remove(id).catch(() => {}) : Promise.resolve()
+      return send(current(), 'remove', id)
+    },
+    activate(id) {
+      return send(current(), 'activate', id)
     },
   }
 }

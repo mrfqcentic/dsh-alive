@@ -890,7 +890,11 @@ describe('desktop main startup', () => {
     await import('../src/main.ts')
     await harness.preparing.promise
     const voice = await import('../src/voice-panel.ts')
-    expect(voice.createVoicePanel).toHaveBeenCalledWith(harness.app.getPath('userData'), expect.any(Function))
+    expect(voice.createVoicePanel).toHaveBeenCalledWith(
+      harness.app.getPath('userData'),
+      expect.any(Function),
+      expect.any(Function),
+    )
     const handler = harness.protocolHandle.mock.calls[0]![1]
     const request = new Request('dsh-app://shell/voice/panel.html')
     expect(await (await handler(request)).text()).toBe('voice panel')

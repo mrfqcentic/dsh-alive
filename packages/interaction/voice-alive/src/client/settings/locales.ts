@@ -46,6 +46,8 @@ export const copy = {
     retry: 'Retry',
     cancel: 'Cancel',
     remove: 'Remove',
+    activate: 'Use',
+    activeTag: 'In use',
     failureNetwork: 'The download failed. Check the connection and try again.',
     failureDisk: 'The disk rejected the download. Check free space and try again.',
     failureHash: 'A file does not match its pinned checksum. Download it again.',

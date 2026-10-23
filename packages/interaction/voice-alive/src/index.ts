@@ -9,6 +9,7 @@
 import { Service, type Context, type Fiber } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-session-controller'
 import type {} from '@deepseek-ai/dsh-app-boot'
+import type {} from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-storage-domain'
@@ -17,7 +18,7 @@ import { createVoiceBindingDeps } from './binding/harness.ts'
 import { createVoiceBinding } from './binding/index.ts'
 import type { VoiceBinding } from './binding/types.ts'
 import { VoiceConductor } from './conductor/tools.ts'
-import { ModelStoreError, createModelStore, voiceModelsRoot } from './models/host/index.ts'
+import { ModelStoreError, createModelStore, registerModelRoutes, voiceModelsRoot } from './models/host/index.ts'
 import type { ModelStore } from './models/host/index.ts'
 
 export {
@@ -70,17 +71,23 @@ export type {
 } from './engine/supervisor.ts'
 export {
   MODEL_CATALOG,
+  MODELS_ACTION_PATH,
+  MODELS_EVENTS_PATH,
+  MODELS_SNAPSHOT_PATH,
   ModelStoreError,
   SUPPORTED_PLATFORM,
   catalogEntry,
   configureSupervisor,
   createModelStore,
   modelBytes,
+  modelSnapshot,
+  registerModelRoutes,
   requireSelection,
   voiceModelsRoot,
 } from './models/host/index.ts'
 export type {
   AsrCatalogEngine,
+  ModelActionKind,
   ModelFailure,
   ModelFailureCode,
   ModelFile,
@@ -88,6 +95,7 @@ export type {
   ModelKind,
   ModelReadiness,
   ModelRecord,
+  ModelSnapshot,
   ModelState,
   ModelStore,
   ModelStoreOptions,
@@ -128,16 +136,29 @@ export class VoiceAliveService extends Service {
   /** The conductor child's activation; awaits the four tools' registration. */
   readonly conductor: Fiber & PromiseLike<Fiber>
 
+  /**
+   * The model HTTP routes' registration scope; resolves once Connection is
+   * mounted, and is disposed with it.
+   */
+  readonly modelEndpoints: Fiber & PromiseLike<Fiber>
+
   private voiceBinding: VoiceBinding | undefined
   private modelStore: ModelStore | undefined
 
   /**
-   * Register the service as `ctx.voiceAlive` and mount its conductor tools.
+   * Register the service as `ctx.voiceAlive`, mount its conductor tools, and
+   * claim the model HTTP routes once Connection is active.
    * @param ctx - Host plugin context that owns the service lifetime.
    */
   constructor(ctx: Context) {
     super(ctx, 'voiceAlive')
     this.conductor = ctx.plugin(VoiceConductor)
+    this.modelEndpoints = ctx.inject(['connection'], (scope) => {
+      const disposers = registerModelRoutes(scope.connection.fetch, () => this.models)
+      return async () => {
+        for (const dispose of disposers) await dispose()
+      }
+    })
   }
 
   /**

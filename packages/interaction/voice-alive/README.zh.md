@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与专用浏览器面板。面板以来自自身 `dist/panel/` 的语音专用名册启动客户端内核，渲染单色 Orb 与窗口控件，并把 settings 与 history 作为由 `?surface=` 选择的界面打开。Host 在 `ELECTRON_RUN_AS_NODE` worker 中运行两个语音引擎：`createAsrEngine` 用 Whisper 或 Parakeet 转写，`createTtsEngine` 流式输出 Kokoro 分块，`createEngineSupervisor` 为每类引擎持有恰好一个模型并报告健康状态。Host 配置行注册四个 conductor 工具，用于绑定新建或恢复的会话，并在重启后恢复该绑定。Bundle 层把这条配置行组合到 `dsh-base` 之上。Host 还拥有该 profile 的固定版本模型目录：`createModelStore` 下载并校验 Whisper、Parakeet 与 Kokoro 权重，并报告语音层所依赖的就绪状态。
+为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与浏览器面板。面板以来自自身 `dist/panel/` 的语音专用名册启动客户端内核，渲染 Orb 与窗口控件，并把 settings 与 history 作为由 `?surface=` 选择的界面打开。Host 在 `ELECTRON_RUN_AS_NODE` worker 中运行两个语音引擎：`createAsrEngine` 用 Whisper 或 Parakeet 转写，`createTtsEngine` 流式输出 Kokoro 分块，`createEngineSupervisor` 为每类引擎持有恰好一个模型并报告健康状态。配置行注册四个 conductor 工具，用于绑定并恢复会话；它还拥有固定版本的模型目录：`createModelStore` 下载并校验阻挡语音的权重。
 
 ## 目录
 
@@ -121,6 +121,8 @@ await configureSupervisor(store, supervisor)
 
 在 Kokoro 与一个识别器都通过校验之前，`selection()` 返回 null，而 `configureSupervisor` 在监督器加载任何内容之前就会拒绝，因此语音不会在不完整的安装上启动。`activate('whisper-base' | 'parakeet-v3')` 选择识别器：未安装的已选模型会阻断就绪状态，而不会改为运行另一个模型。仅支持 Apple Silicon；其他平台的主机会报告 `unsupported-platform` 且不下载任何内容。
 
+该配置行通过三条精确的 Connection Fetch 路由把这个存储提供给 Models 面板：`GET /api/voice.models` 返回当前行与就绪状态并启动存储的一次性校验，`GET /api/voice.models.events` 在每次存储变化时推送一个快照，`POST /api/voice.models.action` 应用 `download`、`cancel`、`remove` 或 `activate`。面板文档由 shell origin 提供，而 Desktop 协议处理器从不把该 origin 转发给 Host，因此它的客户端运行时没有自己的认证载体；Desktop preload 改为暴露 `window.dshVoiceModels`，由 shell 用已持有的 Host cookie 调用这些路由，并且只在有面板订阅时持有事件流。不为模型提供路由的 Host 不返回任何内容，面板会渲染未连接状态，而不是一个空目录。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -145,7 +147,7 @@ await configureSupervisor(store, supervisor)
 | [`src/engine/supervisor.ts`](src/engine/supervisor.ts) | 引擎监督器：模型选择、按引擎的串行通道与队列、健康、重启、崩溃隔离与关闭 |
 | [`src/engine/worker.ts`](src/engine/worker.ts) | 单一 `./worker` 分发器：校验角色并加载 ASR 或 TTS worker |
 | [`src/models/catalog.ts`](src/models/catalog.ts) | 固定版本目录：按修订固定的 URL、精确字节数、每个文件的 SHA-256、许可证，以及各引擎读取的目录布局 |
-| [`src/models/host/`](src/models/host/) | 模型存储：续传与重启策略、校验和验证、原子就位、就绪状态与监督器门禁 |
+| [`src/models/host/`](src/models/host/) | 模型存储：续传与重启策略、校验和验证、原子就位、就绪状态、监督器门禁，以及 shell 桥接调用的精确 Fetch 路由 |
 | [`src/models/types.ts`](src/models/types.ts) | 两个面共享的目录、状态、就绪与选择类型 |
 | [`src/client/index.ts`](src/client/index.ts) | 面板文档激活判定 |
 | [`src/client/mount.tsx`](src/client/mount.tsx) | React 根挂载、按 URL 选择界面与释放 |
@@ -154,7 +156,7 @@ await configureSupervisor(store, supervisor)
 | [`src/client/orb/`](src/client/orb/) | 单色 Orb 画布、其调色板与运动数学 |
 | [`src/client/panel/`](src/client/panel/) | 面板 Orb 状态存储、shell 桥接与窗口控件 |
 | [`src/client/audio/`](src/client/audio/) | 16 kHz 麦克风采集、VAD 分段、词门禁与输入设备枚举；按序 WAV 播放、输出设备路由、输出电平与回声参考节点；消除播放参考、保持半双工尾部并拒绝自我转写的回声防护；串联采集、播放与静音的五态音频状态机 |
-| [`src/client/settings/`](src/client/settings/) | 五标签页 settings 框架及其占位面板 |
+| [`src/client/settings/`](src/client/settings/) | 五标签页 settings 框架、经校验的 shell 桥接之上的 Models 面板（含下载、取消、移除与启用），以及其余占位面板 |
 | [`src/client/history/`](src/client/history/) | 历史列表、搜索、删除流程与 `HistorySource` 接缝 |
 | [`src/client/styles/`](src/client/styles/) | 从 `voice-plugin/design/` 复制的设计系统样式表 |
 | [`panel/main.ts`](panel/main.ts) | 运行 `AppWebEntry` 的面板文档入口 |
@@ -201,7 +203,6 @@ await configureSupervisor(store, supervisor)
 - **监督器尚未接入守护进程** — `VoiceAliveService` 仍无音频状态；`createEngineSupervisor` 已拥有两个导出的引擎，音频界面将在后续工单中接入。
 - **conductor 绑定尚未持久化** — conductor 通过 `VoiceBindingTarget` 记录绑定，但配置行尚未把自己的持久化绑定存储安装到该接收端，因此 `ctx.voiceConductor.currentBinding` 会在重启后丢失。
 - **不捆绑权重** — 包内不含任何模型字节。Models 面板把 Whisper、Parakeet 与 Kokoro 权重下载并校验到 profile 中；两个引擎仍加载调用方提供的目录，目录缺失时拒绝加载。
-- **模型存储尚无 shell 桥接** — Models 面板读取 `window.dshVoiceModels`，在 Desktop preload 尚未暴露 Host 存储时渲染未连接状态；`ctx.voiceAlive.models` 是桥接将要调用的 Host 侧。
 - **四个占位 settings 面板** — 音频、快捷键、工作区与隐私仍是如实的占位实现；Models 面板呈现模型存储的目录状态。
 - **Fixture 历史** — 历史窗口通过 `createHistorySource` 列出一份固定的内存 Fixture；持久化存储将在工单 22 中替换该工厂。
 - **本地面板状态** — Orb 读取一个客户端存储（[`src/client/panel/state.ts`](src/client/panel/state.ts)），由音频状态机驱动。

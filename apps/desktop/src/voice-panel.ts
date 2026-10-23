@@ -56,6 +56,18 @@ const VOICE_SURFACE_CHANNEL = 'dsh-voice:open-surface'
 const VOICE_CLOSE_CHANNEL = 'dsh-voice:close'
 /** Channel the shell uses to tell the visible panel that the summon chord was pressed. */
 const VOICE_TOGGLE_MUTE_CHANNEL = 'dsh-voice:toggle-mute'
+/** Channel a renderer reads the Host model store through. */
+const VOICE_MODELS_STATE_CHANNEL = 'dsh-voice:models-state'
+/** Channel a renderer starts or stops observing the model store through. */
+const VOICE_MODELS_WATCH_CHANNEL = 'dsh-voice:models-watch'
+/** Channel a renderer sends one model action through. */
+const VOICE_MODELS_ACTION_CHANNEL = 'dsh-voice:models-action'
+/** Channel the shell pushes each model store change on. */
+const VOICE_MODELS_EVENT_CHANNEL = 'dsh-voice:models-event'
+/** Host routes the model bridge forwards to; they mirror the voice package's endpoint paths. */
+const MODELS_SNAPSHOT_PATH = '/api/voice.models'
+const MODELS_EVENTS_PATH = '/api/voice.models.events'
+const MODELS_ACTION_PATH = '/api/voice.models.action'
 /** Position file under Electron's `userData`, beside the shell's other device preferences. */
 const POSITION_FILE = 'voice-panel.json'
 /** Delay that merges a drag's repeated `moved` events into one write. */
@@ -103,6 +115,62 @@ export interface VoicePanelApi {
    */
   onToggleMute(listener: () => void): () => void
 }
+
+/** One action the Models pane can send to the Host model store. */
+export type VoiceModelsAction = 'download' | 'cancel' | 'remove' | 'activate'
+
+/**
+ * Typed bridge the sandboxed preload exposes as `window.dshVoiceModels`.
+ *
+ * The snapshot payload is forwarded as received; the Models pane validates it
+ * across the process boundary, so this bridge keeps it opaque.
+ */
+export interface VoiceModelsApi {
+  readonly protocolVersion: 1
+  /** @returns the current model snapshot, or null when the Host serves no model store. */
+  state(): Promise<unknown>
+  /**
+   * Observe every model store change the shell pushes.
+   * @param listener - receives each pushed snapshot.
+   * @returns function that stops observing and releases the Host stream.
+   */
+  subscribe(listener: (snapshot: unknown) => void): () => void
+  /**
+   * Download a catalog entry; progress and failures arrive as pushed snapshots.
+   * @param id - catalog entry to download.
+   * @returns settlement once the Host accepted the request.
+   */
+  download(id: string): Promise<void>
+  /**
+   * Cancel a running download.
+   * @param id - catalog entry whose download should stop.
+   * @returns settlement once the Host accepted the request.
+   */
+  cancel(id: string): Promise<void>
+  /**
+   * Remove one installed entry and its partial payload.
+   * @param id - catalog entry to remove.
+   * @returns settlement once the Host accepted the request.
+   */
+  remove(id: string): Promise<void>
+  /**
+   * Choose the entry readiness uses for its kind.
+   * @param id - ready catalog entry to activate.
+   * @returns settlement once the Host accepted the request.
+   */
+  activate(id: string): Promise<void>
+}
+
+/** Launch facts the shell needs to call the Host model routes. */
+export interface VoiceModelsHost {
+  /** Authenticated Host base URL the shell already forwards application requests to. */
+  readonly url: string
+  /** Authority-bound browser cookie the shell holds for that Host. */
+  readonly cookie: string
+}
+
+/** @returns the Host facts, or undefined while the Host is unavailable. */
+export type VoiceModelsHostReader = () => VoiceModelsHost | undefined
 
 /** Shell-owned controls of the single panel window and its surface windows. */
 export interface VoicePanel {
@@ -267,6 +335,100 @@ function applyTopmost(target: BrowserWindow): void {
   }
 }
 
+/** @param value - decoded renderer value. @returns whether it names a model action. */
+function isVoiceModelsAction(value: unknown): value is VoiceModelsAction {
+  return value === 'download' || value === 'cancel' || value === 'remove' || value === 'activate'
+}
+
+/**
+ * Decode one renderer action payload.
+ * @param value - value received over IPC.
+ * @returns the action and catalog id, or undefined when the payload is malformed.
+ */
+export function decodeVoiceModelsAction(value: unknown): { readonly action: VoiceModelsAction; readonly id: string } | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const { action, id } = value as Record<string, unknown>
+  if (!isVoiceModelsAction(action) || typeof id !== 'string' || id === '') return undefined
+  return { action, id }
+}
+
+/**
+ * Read the typed failure of one refused model action.
+ * @param value - decoded response body.
+ * @returns `code: message` from the Host, or undefined when the body carries no failure.
+ */
+export function modelActionFailure(value: unknown): string | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const failure = (value as Record<string, unknown>).failure
+  if (typeof failure !== 'object' || failure === null || Array.isArray(failure)) return undefined
+  const { code, message } = failure as Record<string, unknown>
+  if (typeof code !== 'string' || typeof message !== 'string') return undefined
+  return `${code}: ${message}`
+}
+
+/**
+ * Decode the JSON payloads of one server-sent event frame.
+ * @param frame - one complete `data:` frame without its blank-line terminator.
+ * @returns the decoded snapshot values in the frame; a malformed payload is dropped.
+ */
+export function decodeModelEventFrame(frame: string): readonly unknown[] {
+  const payloads: unknown[] = []
+  for (const line of frame.split('\n')) {
+    if (!line.startsWith('data: ')) continue
+    try {
+      payloads.push(JSON.parse(line.slice('data: '.length)))
+    } catch {
+      // The line is not JSON, so it carries no snapshot; dropping it keeps the last pushed state.
+    }
+  }
+  return payloads
+}
+
+/**
+ * Forward one Host model event stream until the request ends or the caller aborts.
+ *
+ * The Host route emits one snapshot per store change, so the shell holds the
+ * stream only while a renderer is watching and never polls.
+ * @param host - Host facts the shell authenticates with.
+ * @param onSnapshot - receives every decoded snapshot.
+ * @param signal - aborts the request and releases the Host stream.
+ * @returns settlement once the stream ends or is aborted.
+ */
+export async function pumpVoiceModelEvents(
+  host: VoiceModelsHost,
+  onSnapshot: (snapshot: unknown) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  const response = await fetch(new URL(MODELS_EVENTS_PATH, host.url), {
+    headers: { cookie: host.cookie },
+    signal,
+  })
+  if (!response.ok || response.body === null) {
+    await response.body?.cancel()
+    return
+  }
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) return
+      buffer += decoder.decode(value, { stream: true })
+      let boundary = buffer.indexOf('\n\n')
+      while (boundary >= 0) {
+        for (const snapshot of decodeModelEventFrame(buffer.slice(0, boundary))) onSnapshot(snapshot)
+        buffer = buffer.slice(boundary + 2)
+        boundary = buffer.indexOf('\n\n')
+      }
+    }
+  } catch (error) {
+    // The shell aborts the request when the last watcher leaves; that is the intended end, not a failure.
+    if (signal.aborted) return
+    throw error
+  }
+}
+
 /**
  * Create the process's sole voice panel and register its global summon chord.
  *
@@ -275,9 +437,15 @@ function applyTopmost(target: BrowserWindow): void {
  * @param userData - Electron's `userData` directory; the last window position is stored below it.
  * @param isQuitting - Whether the application is shutting down, read when the panel is closed. A
  * close during shutdown must not be prevented, because a prevented close cancels `app.quit()`.
+ * @param modelsHost - Host facts the model bridge forwards to; omitted by tests and by a window
+ * whose Host never became ready.
  * @returns the show/hide and teardown controls.
  */
-export function createVoicePanel(userData: string, isQuitting: () => boolean): VoicePanel {
+export function createVoicePanel(
+  userData: string,
+  isQuitting: () => boolean,
+  modelsHost: VoiceModelsHostReader = () => undefined,
+): VoicePanel {
   const positionPath = join(userData, 'desktop', POSITION_FILE)
   const stored = readStoredPosition(positionPath)
   const storedBounds: Rectangle | undefined = stored === undefined
@@ -299,6 +467,9 @@ export function createVoicePanel(userData: string, isQuitting: () => boolean): V
   let shortcutRegistered = false
   let saveTimer: NodeJS.Timeout | undefined
   const surfaces = new Map<VoiceSurfaceId, BrowserWindow>()
+  /** Renderers currently watching the model store, with their subscription depth. */
+  const modelWatchers = new Map<Electron.WebContents, number>()
+  let modelStream: AbortController | undefined
 
   const state = (): VoicePanelState => ({
     visible: !window.isDestroyed() && window.isVisible(),
@@ -404,6 +575,9 @@ export function createVoicePanel(userData: string, isQuitting: () => boolean): V
     // asks this shell to close the window through `window.dshVoicePanel.close()`.
     surfaceWindow.on('closed', () => {
       if (surfaces.get(surface) === surfaceWindow) surfaces.delete(surface)
+      // A closed surface releases its model subscription with its renderer.
+      modelWatchers.delete(surfaceWindow.webContents)
+      syncModelStream()
     })
     surfaceWindow.once('ready-to-show', () => {
       if (disposed || surfaceWindow.isDestroyed()) return
@@ -461,12 +635,91 @@ export function createVoicePanel(userData: string, isQuitting: () => boolean): V
     hide()
   })
 
-  ipcMain.handle(VOICE_PANEL_CHANNEL, (event: IpcMainInvokeEvent) => {
-    if (disposed || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) {
-      throw new Error('desktop voice panel: rejected state request from an unowned frame')
+  /**
+   * Hold the Host event stream exactly while at least one renderer watches it.
+   *
+   * A pane that unmounts, a surface that closes, or the last watcher leaving
+   * aborts the request, so a hidden or closed surface never keeps the Host
+   * streaming model state.
+   */
+  const syncModelStream = (): void => {
+    if (disposed || modelWatchers.size === 0) {
+      modelStream?.abort()
+      modelStream = undefined
+      return
     }
-    return state()
-  })
+    if (modelStream !== undefined) return
+    const host = modelsHost()
+    if (host === undefined) return
+    const controller = new AbortController()
+    modelStream = controller
+    const forward = (snapshot: unknown): void => {
+      for (const contents of modelWatchers.keys()) {
+        if (contents.isDestroyed()) continue
+        contents.send(VOICE_MODELS_EVENT_CHANNEL, snapshot)
+      }
+    }
+    void pumpVoiceModelEvents(host, forward, controller.signal)
+      .catch((error: unknown) => {
+        // A failed stream is a lost connection, not a broken pane; the next subscription retries it.
+        console.warn('desktop voice panel: model event stream ended', error)
+      })
+      .finally(() => {
+        if (modelStream === controller) modelStream = undefined
+      })
+  }
+
+  /**
+   * Apply one renderer's watch request.
+   * @param contents - renderer that asked to watch or stop watching.
+   * @param watching - true to add one subscription, false to release one.
+   */
+  const setModelWatching = (contents: Electron.WebContents, watching: boolean): void => {
+    const depth = modelWatchers.get(contents) ?? 0
+    if (watching) modelWatchers.set(contents, depth + 1)
+    else if (depth > 1) modelWatchers.set(contents, depth - 1)
+    else modelWatchers.delete(contents)
+    syncModelStream()
+  }
+
+  /**
+   * Read the Host model snapshot for one renderer.
+   * @returns the snapshot payload, or null when the Host serves no model store.
+   */
+  const readModels = async (): Promise<unknown> => {
+    const host = modelsHost()
+    if (host === undefined) return null
+    const response = await fetch(new URL(MODELS_SNAPSHOT_PATH, host.url), { headers: { cookie: host.cookie } })
+    if (!response.ok) {
+      await response.body?.cancel()
+      return null
+    }
+    return response.json().catch(() => null)
+  }
+
+  /**
+   * Forward one model action to the Host.
+   * @param action - validated action and catalog id.
+   * @returns settlement once the Host accepted the request.
+   * @throws when the Host is unavailable or refused the action.
+   */
+  const sendModelAction = async (action: { readonly action: VoiceModelsAction; readonly id: string }): Promise<void> => {
+    const host = modelsHost()
+    if (host === undefined) throw new Error('desktop voice panel: the Host is unavailable')
+    const response = await fetch(new URL(MODELS_ACTION_PATH, host.url), {
+      method: 'POST',
+      headers: { cookie: host.cookie, 'content-type': 'application/json' },
+      body: JSON.stringify(action),
+    })
+    if (response.ok) {
+      await response.body?.cancel()
+      return
+    }
+    const result: unknown = await response.json().catch(() => null)
+    const failure = modelActionFailure(result)
+    throw new Error(failure ?? `desktop voice panel: the Host refused the ${action.action} request`)
+  }
+
   /** @returns whether the request came from the main frame of the panel or one of its surfaces. */
   const isOwnedFrame = (event: IpcMainInvokeEvent): boolean => {
     if (event.senderFrame !== event.sender.mainFrame) return false
@@ -476,6 +729,32 @@ export function createVoicePanel(userData: string, isQuitting: () => boolean): V
     }
     return false
   }
+  ipcMain.handle(VOICE_MODELS_STATE_CHANNEL, async (event: IpcMainInvokeEvent) => {
+    if (disposed || !isOwnedFrame(event)) {
+      throw new Error('desktop voice panel: rejected model state request from an unowned frame')
+    }
+    return readModels()
+  })
+  ipcMain.handle(VOICE_MODELS_WATCH_CHANNEL, (event: IpcMainInvokeEvent, watching: unknown) => {
+    if (disposed || !isOwnedFrame(event)) {
+      throw new Error('desktop voice panel: rejected model watch request from an unowned frame')
+    }
+    setModelWatching(event.sender, watching === true)
+  })
+  ipcMain.handle(VOICE_MODELS_ACTION_CHANNEL, async (event: IpcMainInvokeEvent, request: unknown) => {
+    if (disposed || !isOwnedFrame(event)) {
+      throw new Error('desktop voice panel: rejected model action from an unowned frame')
+    }
+    const action = decodeVoiceModelsAction(request)
+    if (action === undefined) throw new Error('desktop voice panel: rejected a malformed model action')
+    await sendModelAction(action)
+  })
+  ipcMain.handle(VOICE_PANEL_CHANNEL, (event: IpcMainInvokeEvent) => {
+    if (disposed || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) {
+      throw new Error('desktop voice panel: rejected state request from an unowned frame')
+    }
+    return state()
+  })
   ipcMain.handle(VOICE_SURFACE_CHANNEL, (event: IpcMainInvokeEvent, surface: unknown) => {
     if (disposed || !isOwnedFrame(event)) {
       throw new Error('desktop voice panel: rejected surface request from an unowned frame')
@@ -513,9 +792,14 @@ export function createVoicePanel(userData: string, isQuitting: () => boolean): V
       storePosition(positionPath, { x, y })
     }
     if (shortcutRegistered) globalShortcut.unregister(VOICE_PANEL_ACCELERATOR)
+    modelWatchers.clear()
+    syncModelStream()
     ipcMain.removeHandler(VOICE_PANEL_CHANNEL)
     ipcMain.removeHandler(VOICE_SURFACE_CHANNEL)
     ipcMain.removeHandler(VOICE_CLOSE_CHANNEL)
+    ipcMain.removeHandler(VOICE_MODELS_STATE_CHANNEL)
+    ipcMain.removeHandler(VOICE_MODELS_WATCH_CHANNEL)
+    ipcMain.removeHandler(VOICE_MODELS_ACTION_CHANNEL)
     for (const surfaceWindow of surfaces.values()) {
       if (!surfaceWindow.isDestroyed()) surfaceWindow.destroy()
     }

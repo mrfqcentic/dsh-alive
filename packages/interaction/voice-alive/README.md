@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Give the shipped Web and Desktop profiles a voice panel Host service and a dedicated browser panel. The panel boots the client kernel with a voice-only roster from its `dist/panel/`, renders the monochrome orb and window controls, and opens settings and history as `?surface=` surfaces. The Host runs both speech engines in `ELECTRON_RUN_AS_NODE` workers: `createAsrEngine` transcribes with Whisper or Parakeet, `createTtsEngine` streams Kokoro chunks, and `createEngineSupervisor` holds one model per engine and reports health. The Host row registers four conductor tools that bind a new or resumed session and restore it on restart. The bundle composes the row over `dsh-base`. The Host also owns the profile's pinned model catalog: `createModelStore` downloads and verifies Whisper, Parakeet, and Kokoro weights and reports the readiness the voice layer is blocked on.
+Give the shipped Web and Desktop profiles a voice panel Host service and a browser panel. The panel boots the client kernel with a voice-only roster from its `dist/panel/`, renders the orb and window controls, and opens settings and history as `?surface=` surfaces. The Host runs both speech engines in `ELECTRON_RUN_AS_NODE` workers: `createAsrEngine` transcribes with Whisper or Parakeet, `createTtsEngine` streams Kokoro chunks, and `createEngineSupervisor` holds one model per engine and reports health. The row registers four conductor tools that bind and restore a session, and owns the pinned catalog: `createModelStore` downloads and verifies the weights that gate voice.
 
 ## Table of Contents
 
@@ -121,6 +121,8 @@ await configureSupervisor(store, supervisor)
 
 `selection()` returns null until Kokoro and one recognizer are verified, and `configureSupervisor` refuses before the supervisor loads anything, so voice cannot start on a partial install. `activate('whisper-base' | 'parakeet-v3')` chooses the recognizer: a chosen model that is not installed blocks readiness instead of running the other one. Only Apple Silicon is supported; a host on another platform reports `unsupported-platform` without downloading.
 
+The row serves this store to the Models pane through three exact Connection Fetch routes: `GET /api/voice.models` returns the current rows and readiness and starts the store's one-time verification, `GET /api/voice.models.events` streams one snapshot per store change, and `POST /api/voice.models.action` applies `download`, `cancel`, `remove`, or `activate`. The panel document is served from the shell origin, which the Desktop protocol handler never forwards to the Host, so its client runtime has no authenticated carrier of its own; the Desktop preload exposes `window.dshVoiceModels` instead, the shell calls these routes with the Host cookie it already holds, and it holds the event stream only while a pane is subscribed. A Host that serves no model route answers nothing, and the pane renders its disconnected state rather than an empty catalog.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -145,7 +147,7 @@ The panel is served as a static document on the shell origin, so no Host request
 | [`src/engine/supervisor.ts`](src/engine/supervisor.ts) | Engine supervisor: model selection, per-engine lanes and queues, health, restart, crash isolation, shutdown |
 | [`src/engine/worker.ts`](src/engine/worker.ts) | Single `./worker` dispatcher that validates the role and loads the ASR or TTS worker |
 | [`src/models/catalog.ts`](src/models/catalog.ts) | Pinned catalog: revision-pinned URLs, exact byte counts, SHA-256 per file, licenses, and the directory layout each engine reads |
-| [`src/models/host/`](src/models/host/) | Model store: resume and restart policy, checksum verification, atomic finalize, readiness, and the supervisor gate |
+| [`src/models/host/`](src/models/host/) | Model store: resume and restart policy, checksum verification, atomic finalize, readiness, the supervisor gate, and the exact Fetch routes the shell bridge calls |
 | [`src/models/types.ts`](src/models/types.ts) | Catalog, state, readiness, and selection types shared by both faces |
 | [`src/client/index.ts`](src/client/index.ts) | Panel-document activation gate |
 | [`src/client/mount.tsx`](src/client/mount.tsx) | React root mount, URL-selected surface, and disposal |
@@ -154,7 +156,7 @@ The panel is served as a static document on the shell origin, so no Host request
 | [`src/client/orb/`](src/client/orb/) | Monochrome orb canvas, palette, and motion math |
 | [`src/client/panel/`](src/client/panel/) | Panel orb state store, shell bridge, and window controls |
 | [`src/client/audio/`](src/client/audio/) | 16 kHz microphone capture, VAD segmentation, word gate, and input device enumeration; ordered WAV playback, output-device routing, output level, and the echo-reference node; the echo guard that cancels the playback reference, holds the half-duplex tail, and rejects self-transcription; the audio state machine that ties capture, playback, and mute together |
-| [`src/client/settings/`](src/client/settings/) | Five-tab settings frame, the Models pane over the shell bridge with its payload validation, and the remaining pane placeholders |
+| [`src/client/settings/`](src/client/settings/) | Five-tab settings frame, the Models pane over the validated shell bridge with download, cancel, remove, and activate, and the remaining pane placeholders |
 | [`src/client/history/`](src/client/history/) | History list, search, delete flow, and the `HistorySource` seam |
 | [`src/client/styles/`](src/client/styles/) | Design-system stylesheets copied from `voice-plugin/design/` |
 | [`panel/main.ts`](panel/main.ts) | Panel document entry that runs `AppWebEntry` |
@@ -201,7 +203,6 @@ Prefix-stable while the tool definitions are unchanged. Loading or unloading the
 - **Supervisor not wired to the daemon** — `VoiceAliveService` still has no audio state; `createEngineSupervisor` owns both exported engines, and the audio surfaces attach in later tickets.
 - **Conductor binding is not durable yet** — the conductor records a binding through `VoiceBindingTarget`, but the row does not install its durable binding store on that sink, so `ctx.voiceConductor.currentBinding` is lost on restart.
 - **No bundled weights** — the package ships no model bytes. The Models pane downloads and verifies Whisper, Parakeet, and Kokoro weights into the profile; both engines still load the caller-supplied directory and reject when it is missing.
-- **Model store has no shell bridge yet** — the Models pane reads `window.dshVoiceModels` and renders the disconnected state because the Desktop preload does not expose the Host store; `ctx.voiceAlive.models` is the Host side the bridge will call.
 - **Four placeholder settings panes** — audio, shortcuts, workspaces, and privacy remain honest placeholders; the Models pane renders the store's catalog state.
 - **Fixture history** — the history window lists a fixed in-memory fixture through `createHistorySource`; the durable store replaces that factory in ticket 22.
 - **Local panel state** — the orb reads one client store ([`src/client/panel/state.ts`](src/client/panel/state.ts)) that the audio state machine drives.
