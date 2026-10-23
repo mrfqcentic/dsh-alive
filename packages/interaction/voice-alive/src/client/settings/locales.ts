@@ -21,10 +21,36 @@ export const copy = {
   models: {
     title: 'Models',
     description: 'Local speech weights, their size, languages, and readiness.',
-    badge: 'Not ready',
-    emptyTitle: 'No models yet',
-    emptyBody: 'The catalog lists pinned downloads here once the model store exists.',
-    action: 'Download models',
+    badgeReady: 'Voice ready',
+    badgeBlocked: 'Not ready',
+    badgeUnavailable: 'Not connected',
+    bannerReady: 'Voice can start: Kokoro and one recognizer are installed and verified.',
+    bannerBlocked: 'Voice stays off until Kokoro and one recognizer are downloaded and verified.',
+    bannerUnavailable: 'The model store is not connected in this window, so nothing can be downloaded here.',
+    disconnectedTitle: 'Model store unavailable',
+    disconnectedBody: 'This window has no bridge to the Host model store. Open settings from the voice panel.',
+    loading: 'Reading the model store…',
+    requiredTag: 'Required',
+    alternativeTag: 'Alternative',
+    asrTag: 'Recognizer',
+    ttsTag: 'Voice',
+    sizeLabel: 'Size',
+    languagesLabel: 'Languages',
+    stateAbsent: 'Not installed',
+    stateDownloading: 'Downloading',
+    stateVerifying: 'Verifying',
+    stateReady: 'Ready',
+    stateError: 'Error',
+    checkMark: '✓',
+    download: 'Download',
+    retry: 'Retry',
+    cancel: 'Cancel',
+    remove: 'Remove',
+    failureNetwork: 'The download failed. Check the connection and try again.',
+    failureDisk: 'The disk rejected the download. Check free space and try again.',
+    failureHash: 'A file does not match its pinned checksum. Download it again.',
+    failurePlatform: 'This host cannot run the pinned speech runtimes.',
+    failureCancelled: 'The download was cancelled.',
     foot: 'Voice stays off until the required models are downloaded and verified.',
   },
   workspaces: {
@@ -70,3 +96,26 @@ export const copy = {
     foot: 'The settings surface itself sends nothing.',
   },
 } as const
+
+/**
+ * Format a byte count for the Models pane.
+ * @param bytes - byte count to render.
+ * @returns the size in GB when it is at least one gigabyte, else in whole MB.
+ */
+export function formatModelSize(bytes: number): string {
+  const megabytes = bytes / 1_000_000
+  if (megabytes >= 1_000) return `${(megabytes / 1_000).toFixed(1)} GB`
+  return `${String(Math.round(megabytes))} MB`
+}
+
+/**
+ * Format download progress for the Models pane.
+ * @param receivedBytes - bytes already present.
+ * @param totalBytes - pinned byte count.
+ * @returns a percentage with the transferred size.
+ */
+export function formatModelProgress(receivedBytes: number, totalBytes: number): string {
+  const total = totalBytes === 0 ? 1 : totalBytes
+  const percent = Math.min(100, Math.max(0, Math.round(receivedBytes / total * 100)))
+  return `${String(percent)}% · ${formatModelSize(receivedBytes)} of ${formatModelSize(totalBytes)}`
+}
