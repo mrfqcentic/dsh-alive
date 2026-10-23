@@ -1,14 +1,16 @@
 /**
  * English copy for the history window.
  *
- * The panel document has no locale service of its own, so this dictionary is
- * the copy owner for the surface; the Client UI i18n check treats a
- * `locales.ts` module as the only legitimate place for product text.
+ * The panel document has no locale service of its own, so this object is the
+ * copy owner for the surface; the Client UI i18n check treats a `locales.ts`
+ * module as the only legitimate place for product text. Like the panel and
+ * settings dictionaries beside it, the object is not a registered locale
+ * dictionary: naming it `en` would promise the other shipped languages.
  * @module @deepseek-ai/dsh-voice-alive/client/history/locales
  */
 
 /** English history-window copy. */
-export const en = {
+export const copy = {
   'history.eyebrow': 'Voice turns',
   'history.title': 'History',
   'history.close': 'Close history',
@@ -39,7 +41,7 @@ export const en = {
 } as const
 
 /** Key domain of the history-window dictionary. */
-export type HistoryKey = keyof typeof en
+export type HistoryKey = keyof typeof copy
 
 /**
  * Resolve one history-window label.
@@ -47,5 +49,5 @@ export type HistoryKey = keyof typeof en
  * @returns the English label for that key.
  */
 export function t(key: HistoryKey): string {
-  return en[key]
+  return copy[key]
 }

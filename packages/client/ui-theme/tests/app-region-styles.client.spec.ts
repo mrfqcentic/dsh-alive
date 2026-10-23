@@ -1,17 +1,23 @@
 /**
  * Window drag-region ownership, asserted against the CSS and the markup on disk.
- * The shell declares `-webkit-app-region: drag` exactly once — ui-web base.css,
- * for any element that marks itself `data-window-drag` — so a chrome row's own box
- * is the window's draggable geometry and no fixed band has to match any row's
- * height. CHROME_ROWS pairs every row's mark with its sheet and its pinned
- * geometry, so a row that stops marking itself, an unmarked row added to the
- * composition, and a mark on a container that owns no chrome row all fail here.
+ * The shell window declares `-webkit-app-region: drag` exactly once — ui-web
+ * base.css, for any element that marks itself `data-window-drag` — so a chrome
+ * row's own box is the window's draggable geometry and no fixed band has to match
+ * any row's height. CHROME_ROWS pairs every row's mark with its sheet and its
+ * pinned geometry, so a row that stops marking itself, an unmarked row added to
+ * the composition, and a mark on a container that owns no chrome row all fail here.
  * Electron composes app-regions from window geometry in DOM order, ignoring
  * stacking: a drag rule on a content container overrides the no-drag of any
  * overlay mounted earlier, so its text and labels drag the window instead of
  * receiving clicks. Everything interactive opts out through ui-web base.css; a
  * box that selector cannot cover subtracts itself in its own sheet. Composed
  * geometry itself is the browser lane's claim — ui-theme cannot see layout.
+ *
+ * A window with a document of its own owns its drag surface in that document.
+ * The voice panel is one: its renderer loads the voice package's styles, never
+ * the shell sheet, and it is a frameless window on every platform, so the
+ * darwin-only mark rule cannot reach it. Its whole surface is the window's drag
+ * geometry; DRAG_OWNERS registers it so a fourth declaration still fails here.
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -30,6 +36,23 @@ const WINDOWS_CAPTION = 'client/ui-layout/src/client/AppFrame.module.css'
 
 /** That caption row's selector, as authored. */
 const WINDOWS_CAPTION_SELECTOR = ':global([data-windows-titlebar]) .frame::before'
+
+/** The voice panel window's sheet, relative to packages/; its document is not the shell document. */
+const VOICE_PANEL = 'interaction/voice-alive/src/client/panel/panel.module.css'
+
+/** The panel surface's selector, as authored; the whole window is the drag geometry. */
+const VOICE_PANEL_SELECTOR = '.surface'
+
+/**
+ * Every sheet in the package tree allowed to declare a window drag region, in
+ * the order `dragOwners` sorts them. A sheet outside this registry fails the
+ * assertion below, so adding a window means adding its owner here.
+ */
+const DRAG_OWNERS: readonly { file: string; selectors: string[] }[] = [
+  { file: WINDOWS_CAPTION, selectors: [WINDOWS_CAPTION_SELECTOR] },
+  { file: SHELL_SHEET, selectors: [SHELL_DRAG_SELECTOR] },
+  { file: VOICE_PANEL, selectors: [VOICE_PANEL_SELECTOR] },
+]
 
 /** The mark a chrome row puts on the element that owns its drag. */
 const DRAG_MARK = 'data-window-drag'
@@ -238,15 +261,14 @@ describe('window drag-region ownership', () => {
     expect(dragSelectors('.a { app-region: no-drag !important; }')).toEqual([])
   })
 
-  it('declares the window drag surface in exactly two places', () => {
+  it('declares the window drag surface only in the registered owners', () => {
     // Rows mark themselves instead of each sheet declaring its own drag, so the
-    // tree holds one darwin rule — the mark rule in the shell sheet — plus the
-    // Windows caption row, which is that platform's own chrome. A third
+    // shell tree holds one darwin rule — the mark rule in the shell sheet — plus
+    // the Windows caption row, which is that platform's own chrome. The voice
+    // panel window is the third: its document loads no shell sheet and it drags
+    // on every platform, so it declares its own whole-window surface. Any other
     // declaration, a per-sheet row rule, or a darwin band on the frame fails here.
-    expect(dragOwners()).toEqual([
-      { file: WINDOWS_CAPTION, selectors: [WINDOWS_CAPTION_SELECTOR] },
-      { file: SHELL_SHEET, selectors: [SHELL_DRAG_SELECTOR] },
-    ])
+    expect(dragOwners()).toEqual(DRAG_OWNERS)
   })
 
   it('declares every pinned chrome row at the height the manifest pins', () => {

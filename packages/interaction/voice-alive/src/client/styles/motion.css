@@ -44,7 +44,9 @@
   padding: 6px 10px;
   cursor: pointer;
 }
-.state-buttons button:hover { color: var(--text); border-color: var(--line-strong); }
+@media (hover: hover) {
+  .state-buttons button:hover { color: var(--text); border-color: var(--line-strong); }
+}
 .state-buttons button[aria-pressed="true"] {
   background: var(--surface-3);
   color: var(--text);
@@ -136,6 +138,7 @@
   height: 16px;
   margin-top: -8px;
   border-radius: 50%;
+  corner-shape: round;
   background: var(--accent);
   transform: translateX(0);
 }

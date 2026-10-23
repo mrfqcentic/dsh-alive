@@ -109,21 +109,26 @@ body::after {
   -webkit-backdrop-filter: blur(10px);
   border-color: var(--glass-stroke);
 }
-.btn:hover {
-  background: rgba(255, 255, 255, 0.11);
-  border-color: var(--glass-stroke-strong);
+@media (hover: hover) {
+  .btn:hover {
+    background: rgba(255, 255, 255, 0.11);
+    border-color: var(--glass-stroke-strong);
+  }
 }
-.btn--primary,
-.btn--primary:hover {
+.btn--primary {
   background: var(--accent);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   border-color: transparent;
 }
-.btn--primary:hover { background: var(--accent-hover); }
+@media (hover: hover) {
+  .btn--primary:hover { background: var(--accent-hover); }
+}
 
 .btn--ghost { background: transparent; backdrop-filter: none; }
-.btn--ghost:hover { background: rgba(255, 255, 255, 0.06); }
+@media (hover: hover) {
+  .btn--ghost:hover { background: rgba(255, 255, 255, 0.06); }
+}
 
 .input,
 .select select,
@@ -133,8 +138,10 @@ textarea.input {
   -webkit-backdrop-filter: blur(10px);
   border-color: var(--glass-stroke);
 }
-.input:hover,
-.select select:hover { border-color: var(--glass-stroke-strong); }
+@media (hover: hover) {
+  .input:hover,
+  .select select:hover { border-color: var(--glass-stroke-strong); }
+}
 
 .tabs button[aria-selected="true"] { border-bottom-color: var(--accent); }
 
@@ -168,9 +175,11 @@ textarea.input {
 /* Inner surfaces that would otherwise punch opaque holes in the glass. */
 
 .rows .row { background: rgba(255, 255, 255, 0.015); }
-.history-row:hover { background: rgba(255, 255, 255, 0.04); }
-.tabs button:hover,
-.site-nav a:hover { background: rgba(255, 255, 255, 0.06); }
+@media (hover: hover) {
+  .history-row:hover { background: rgba(255, 255, 255, 0.04); }
+  .tabs button:hover,
+  .site-nav a:hover { background: rgba(255, 255, 255, 0.06); }
+}
 
 .segmented button[aria-pressed="true"] {
   background: rgba(255, 255, 255, 0.1);
