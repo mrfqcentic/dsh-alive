@@ -9,8 +9,8 @@
   en: ff1b0d4a0a52a4b0
   zh: 464e8f9970f66eb0
 /deepseek-ai-dsh-voice-alive/summary:
-  en: 6b107298023c2b41
-  zh: 5f7e3f380aa8fee7
+  en: 903527492b88ad9b
+  zh: 2a3de2b38c9f96db
 /deepseek-ai-dsh-voice-alive/table-of-contents:
   en: d152484eb41ac6b4
   zh: 364c80ee00a374ff
@@ -27,11 +27,14 @@
   en: 991d2b94d0982fef
   zh: c8f62f5c94cbf2f9
 /deepseek-ai-dsh-voice-alive/use-this-package/tts-engine:
-  en: 1c44d296fe3c3bc4
-  zh: d0b0fff1b49f060a
+  en: e9328cec2d85e8c1
+  zh: 6e67ff0b995a3d09
+/deepseek-ai-dsh-voice-alive/use-this-package/engine-supervisor:
+  en: b42e6002f4f4c531
+  zh: 0702c54c9cc7203b
 /deepseek-ai-dsh-voice-alive/understand-the-implementation:
-  en: b0bad03c47682490
-  zh: cbb4c94136e70e49
+  en: 483f551b8a89b21a
+  zh: 92756d42a6d7914f
 /deepseek-ai-dsh-voice-alive/further-exploration:
   en: 0691097235e87dca
   zh: f3253982a9f1db12
@@ -42,8 +45,8 @@
   en: 9a167672320b7cd7
   zh: 14424d8d7b005354
 /deepseek-ai-dsh-voice-alive/known-limitations-and-deferred-work:
-  en: 201a7fd9b4e654ca
-  zh: 67dac316608b27b6
+  en: 9030ea61d29a769a
+  zh: 2f621fc9db3b39b5
 /deepseek-ai-dsh-voice-alive/known-limitations-and-deferred-work/dev-note:
   en: 26803f14f4a8104e
   zh: b3e1507b4c3b0cba
