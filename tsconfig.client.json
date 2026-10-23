@@ -66,8 +66,8 @@
     { "path": "./apps/desktop/tsconfig.client.json" },
     { "path": "./packages/util/atomic-write" },
     { "path": "./packages/experimental/client-ui-voice-input" },
-    { "path": "./packages/experimental/voice-alive" },
-    { "path": "./packages/experimental/voice-alive/panel" },
+    { "path": "./packages/interaction/voice-alive" },
+    { "path": "./packages/interaction/voice-alive/panel" },
     { "path": "./packages/experimental/client-ui-claude-code-mods" },
 
     { "path": "./packages/client/ui-sidebar-terminal" },

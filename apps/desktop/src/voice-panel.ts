@@ -37,7 +37,7 @@ const PACKAGED_PANEL_DIRECTORY = ['node_modules', '@deepseek-ai', 'dsh-voice-ali
  * in `apps/desktop/{src,lib}`, so three parents reach the repository root.
  */
 const REPOSITORY_PANEL_DIRECTORY = fileURLToPath(
-  new URL('../../../packages/experimental/voice-alive/dist/panel', import.meta.url),
+  new URL('../../../packages/interaction/voice-alive/dist/panel', import.meta.url),
 )
 
 /** Fixed content size shared by the window options and the position math. */

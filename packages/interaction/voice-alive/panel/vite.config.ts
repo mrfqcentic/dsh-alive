@@ -32,7 +32,8 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
-    sourcemap: true,
+    // The panel ships as a published package payload; maps resolve no source there.
+    sourcemap: false,
     // The panel document is written under the package's dist tree.
     outDir: here('../dist/panel'),
     emptyOutDir: true,

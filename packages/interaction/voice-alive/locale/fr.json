@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Panneau vocal",
+    "description": "Héberge le démon du panneau vocal et le client navigateur qui s'affiche uniquement dans le document du panneau."
+  }
+}

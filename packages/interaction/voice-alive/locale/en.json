@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Voice panel",
+    "description": "Hosts the voice panel daemon and the browser client that renders only in the panel document."
+  }
+}

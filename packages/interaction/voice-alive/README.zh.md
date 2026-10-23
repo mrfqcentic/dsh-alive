@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-为 Desktop profile 提供语音面板的 Host 服务与专用浏览器面板。同一条双面配置行在 Host 中挂载 `ctx.voiceAlive`，并提供仅在面板文档内渲染的客户端条目。该客户端在主聊天界面保持惰性。面板文档以语音专用名册启动常规客户端内核，名册由包自身的 `dist/panel/` 提供。Bundle 层把这条配置行组合到 `dsh-base` 之上。
+为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与专用浏览器面板。同一条双面配置行在 Host 中挂载 `ctx.voiceAlive`，并提供仅在面板文档内渲染的客户端条目。该客户端在主聊天界面保持惰性。面板文档以语音专用名册启动常规客户端内核，名册由包自身的 `dist/panel/` 提供。Bundle 层把这条配置行组合到 `dsh-base` 之上。
 
 ## 目录
 
@@ -33,7 +33,7 @@ kind: "package-reference"
 
 ### 最小配置
 
-该配置行暂时不接受配置；后续工单会增加模型、音频设备与绑定相关的校验字段。
+该配置行不接受配置；模型、音频设备与绑定相关的设置通过该服务挂载。
 
 ```yaml
 - id: voice-alive
@@ -57,7 +57,7 @@ Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带
 | [`src/index.ts`](src/index.ts) | 注册为 `ctx.voiceAlive` 的 Host `VoiceAliveService` |
 | [`src/client/index.ts`](src/client/index.ts) | 面板文档激活判定 |
 | [`src/client/mount.tsx`](src/client/mount.tsx) | React 根挂载与释放 |
-| [`src/client/PanelPlaceholder.tsx`](src/client/PanelPlaceholder.tsx) | 在 Orb 工单之前的临时面板根 |
+| [`src/client/PanelPlaceholder.tsx`](src/client/PanelPlaceholder.tsx) | 临时面板根 |
 | [`panel/main.ts`](panel/main.ts) | 运行 `AppWebEntry` 的面板文档入口 |
 | [`panel/vite.config.ts`](panel/vite.config.ts) | 使用 shell 浏览器 define 的相对基址面板构建 |
 | [`scripts/assemble-panel.ts`](scripts/assemble-panel.ts) | 语音专用启动表与复制后的客户端 Bundle |
@@ -74,7 +74,7 @@ Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带
 - [客户端模块系统](../../client/modules/README.zh.md) — 面板构建所渲染的 `__DSH_BOOT__` 协议。
 - [应用启动](../../boot/app-boot/README.zh.md) — profile 组合与 Bundle patch 解析。
 - [Web 应用层](../../bundle/web-app/README.zh.md) — 面板复用的启动机制所属界面。
-- [实验性包](../README.zh.md) — 此包所在的包组。
+- [交互包](../README.zh.md) — 此包所属的人机协作包组。
 
 -----
 
@@ -91,9 +91,9 @@ Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **空的 Host 命名空间** — `VoiceAliveService` 尚无 conductor 工具、会话绑定、音频状态或引擎；这些由后续工单添加。
+- **空的 Host 命名空间** — `VoiceAliveService` 尚无 conductor 工具、会话绑定、音频状态或引擎。
 - **占位面板** — 客户端只挂载一个单色圆形，而非 Orb 或面板框架。它不显示状态、设置或历史。
-- **没有随包 profile 选择该层** — Desktop fork 会在其 profile patch 中加入该 Bundle；在那之前，该配置行只在显式组合的 profile 中运行。
+- **随包层中的占位界面** — `web` profile 模板会选择该 Bundle，因此全新的 Web 或 Desktop 安装都会挂载该配置行；面板本身仍是上文的占位实现。
 - **面板路由由 shell 拥有** — 此包输出带文档相对 URL 的 `dist/panel/`，但 Desktop 协议处理器必须把 `/voice/*` 映射到它。Web 服务器不提供面板。
 - **与 shell 同等规模的惰性资源** — 面板构建携带客户端内核按需拆分的语法与字体资源，因此 `dist/panel/` 在磁盘上约 20 MB。面板从不加载这些分块；它们存在是因为 shell 的静态模块表会触及它们。
 

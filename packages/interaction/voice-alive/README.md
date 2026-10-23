@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Give a Desktop profile a voice panel Host service and a dedicated browser panel. The same dual-face row mounts `ctx.voiceAlive` in the Host and a client entry that renders only inside the panel document. The client stays inert in the main chat surface. The panel document boots the ordinary client kernel with a voice-only roster served from the package's own `dist/panel/`. The bundle layer composes the row over `dsh-base`.
+Give the shipped Web and Desktop profiles a voice panel Host service and a dedicated browser panel. The same dual-face row mounts `ctx.voiceAlive` in the Host and a client entry that renders only inside the panel document. The client stays inert in the main chat surface. The panel document boots the ordinary client kernel with a voice-only roster served from the package's own `dist/panel/`. The bundle layer composes the row over `dsh-base`.
 
 ## Table of Contents
 
@@ -33,7 +33,7 @@ Choose this package when a profile hosts the voice panel: it owns the daemon nam
 
 ### Minimal configuration
 
-The row takes no configuration yet; later tickets add validated fields for models, audio devices, and binding.
+The row takes no configuration; model, audio-device, and binding settings attach through the service.
 
 ```yaml
 - id: voice-alive
@@ -57,7 +57,7 @@ The panel is served as a static document on the shell origin, so no Host request
 | [`src/index.ts`](src/index.ts) | Host `VoiceAliveService` registered as `ctx.voiceAlive` |
 | [`src/client/index.ts`](src/client/index.ts) | Panel-document activation gate |
 | [`src/client/mount.tsx`](src/client/mount.tsx) | React root mount and disposal |
-| [`src/client/PanelPlaceholder.tsx`](src/client/PanelPlaceholder.tsx) | Temporary panel root until the orb ticket |
+| [`src/client/PanelPlaceholder.tsx`](src/client/PanelPlaceholder.tsx) | Temporary panel root |
 | [`panel/main.ts`](panel/main.ts) | Panel document entry that runs `AppWebEntry` |
 | [`panel/vite.config.ts`](panel/vite.config.ts) | Relative-base panel build with the shell's browser defines |
 | [`scripts/assemble-panel.ts`](scripts/assemble-panel.ts) | Voice-only boot table and copied client bundles |
@@ -74,7 +74,7 @@ The panel is served as a static document on the shell origin, so no Host request
 - [Client module system](../../client/modules/README.md) — the `__DSH_BOOT__` protocol the panel build renders.
 - [Application boot](../../boot/app-boot/README.md) — profile composition and bundle patch resolution.
 - [Web application layer](../../bundle/web-app/README.md) — the surface whose boot mechanism the panel reuses.
-- [Experimental packages](../README.md) — the group this package lives in.
+- [Interaction packages](../README.md) — the human-collaboration group this package lives in.
 
 -----
 
@@ -91,9 +91,9 @@ The row changes no request assembly, so no prompt segment or cache boundary depe
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Empty Host namespace** — `VoiceAliveService` has no conductor tools, session binding, audio state, or engines yet; those arrive in later tickets.
+- **Empty Host namespace** — `VoiceAliveService` has no conductor tools, session binding, audio state, or engines.
 - **Placeholder panel** — the client mounts a single monochrome circle, not the orb or the panel chrome. It shows no state, settings, or history.
-- **No shipped profile selects the layer** — the Desktop fork adds the bundle in its profile patch; until then the row runs only in an explicitly composed profile.
+- **Placeholder surface in a shipped layer** — the `web` profile template selects the bundle, so a fresh Web or Desktop install mounts the row; the panel itself is still the placeholder above.
 - **Panel route is shell-owned** — this package emits `dist/panel/` with document-relative URLs, but the Desktop protocol handler must map `/voice/*` onto it. The Web server does not serve the panel.
 - **Shell-sized lazy assets** — the panel build carries the client kernel's code-split grammar and font assets, so `dist/panel/` is roughly 20 MB on disk. The panel never loads those chunks; they exist because the shell's static module table reaches them.
 

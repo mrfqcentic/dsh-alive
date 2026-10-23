@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Panel de voz",
+    "description": "Aloja el demonio del panel de voz y el cliente de navegador que solo se renderiza en el documento del panel."
+  }
+}

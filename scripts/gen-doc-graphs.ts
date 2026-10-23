@@ -766,6 +766,13 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'User-facing preset table (`workspace-write`/`danger-full-access`) bundling the sandbox-mode and approval-policy knobs; a switch writes one `permission/preset` event through to both knob events.',
   },
   {
+    key: 'voiceAlive',
+    pkg: 'voice-alive',
+    title: 'Voice panel daemon',
+    mode: 'service',
+    note: 'Host namespace for the voice panel: the shipped web template mounts the row, the panel document activates the client half, and the package keeps the panel document beside the Host entry.',
+  },
+  {
     key: 'ptcRuntime',
     pkg: 'ptc-runtime',
     title: 'PTC execution seam',

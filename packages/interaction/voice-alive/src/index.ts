@@ -1,8 +1,8 @@
 /**
  * Voice panel host row. The daemon lives inside the application's Host process
- * and dies with it: no companion service and no second profile. This ticket
- * mounts the service namespace only; the conductor tools, session binding, and
- * inference engines arrive in later tickets.
+ * and dies with it: no companion service and no second profile. The row mounts
+ * the service namespace; the conductor tools, session binding, and inference
+ * engines attach through it.
  * @module @deepseek-ai/dsh-voice-alive
  */
 
@@ -18,9 +18,9 @@ declare module '@deepseek-ai/cordis' {
 /**
  * Host service owned by the voice bundle row.
  *
- * It holds no state yet: later tickets attach the bound session, the audio
- * state machine, and the conductor to this service so other host plugins read
- * one namespace per panel rather than process-global state.
+ * It owns no state. The bound session, the audio state machine, and the
+ * conductor belong on this service so other host plugins read one namespace
+ * per panel rather than process-global state.
  */
 export class VoiceAliveService extends Service {
   /**

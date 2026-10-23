@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "packages/experimental/voice-alive"
+    "directory": "packages/interaction/voice-alive"
   },
   "type": "module",
   "main": "lib/index.js",
@@ -23,13 +23,15 @@
       "default": "./lib/client.js"
     },
     "./panel/*": "./dist/panel/*",
+    "./locale/*.json": "./locale/*.json",
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "files": [
-    "dist/panel",
+    "locale/*.json",
     "lib/index.js",
     "lib/client.js",
+    "dist/panel",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",

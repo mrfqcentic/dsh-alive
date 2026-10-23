@@ -222,6 +222,10 @@
       "@deepseek-ai/dsh-agent/brand": ["./packages/core/agent/src/brand.ts"],
       "@deepseek-ai/dsh-headless/startup": ["./packages/bundle/headless/src/startup.ts"],
       "@deepseek-ai/dsh-web-app/startup": ["./packages/bundle/web-app/src/startup.ts"],
+      "@deepseek-ai/dsh-voice-alive": ["./packages/interaction/voice-alive/src/index.ts"],
+      "@deepseek-ai/dsh-voice-alive/client": ["./packages/interaction/voice-alive/src/client/index.ts"],
+      // The package name adds the layer kind, so the directory-derived alias cannot cover it.
+      "@deepseek-ai/dsh-voice-alive-bundle": ["./packages/bundle/voice-alive/src/index.ts"],
       "@deepseek-ai/dsh-client-*/client": ["./packages/client/*/src/client"],
       // One wildcard maps every @deepseek-ai/dsh-<name> to its source. Package
       // dir names are unique across groups, so first-on-disk-wins resolution is
