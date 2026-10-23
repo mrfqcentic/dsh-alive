@@ -391,6 +391,13 @@ vi.mock('../src/welcome-backend.ts', () => ({
     account: { watch: harness.watchAccount, state: async () => ({ status: 'signed-out', attempt: null }) },
   }),
 }))
+// The panel owns its own window lifecycle; this suite covers the primary window and the hook itself.
+vi.mock('../src/voice-panel.ts', () => ({
+  VOICE_PANEL_PATH_PREFIX: '/voice',
+  createVoicePanel: vi.fn(),
+  resolveVoicePanelRoot: vi.fn(() => 'desktop-test-voice-root'),
+  serveVoicePanelDocument: vi.fn(async () => new Response('voice panel')),
+}))
 
 function configureTestAuthPopup(allow: boolean): void {
   const directory = join(harness.app.getPath('userData'), 'desktop')
@@ -877,6 +884,17 @@ describe('desktop main startup', () => {
     expect(await (await handler(request)).text()).toBe('shell document')
     expect(serveWebDocument).toHaveBeenCalledWith(request, join('desktop-test-app', 'renderer'))
     expect((await handler(new Request('dsh-app://foreign/index.html'))).status).toBe(404)
+  })
+
+  it('routes the voice panel document through the voice package and starts its window', async () => {
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const voice = await import('../src/voice-panel.ts')
+    expect(voice.createVoicePanel).toHaveBeenCalledWith(harness.app.getPath('userData'), expect.any(Function))
+    const handler = harness.protocolHandle.mock.calls[0]![1]
+    const request = new Request('dsh-app://shell/voice/panel.html')
+    expect(await (await handler(request)).text()).toBe('voice panel')
+    expect(voice.serveVoicePanelDocument).toHaveBeenCalledWith(request, 'desktop-test-voice-root')
   })
 
   it.each(['darwin', 'win32'] as const)('relays the %s fullscreen state on transitions and after each load', async (platform) => {

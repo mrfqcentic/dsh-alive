@@ -260,6 +260,10 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // The headless entry and its startup row share the JSON projection code
   // through a hashed tsdown chunk; both import it by relative path.
   '@deepseek-ai/dsh-headless': ['lib/json-stream-*.js'],
+  // The voice panel document and its copied client bundles are built assets
+  // outside the TypeScript emit; the Desktop shell serves them from the
+  // installed package under `dsh-app://shell/voice/`.
+  '@deepseek-ai/dsh-voice-alive': ['dist/panel'],
 }
 
 function sameStringList(actual: readonly string[] | undefined, expected: readonly string[]): boolean {

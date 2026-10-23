@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Sprachpanel",
+    "description": "Stellt den Daemon des Sprachpanels und den Browser-Client bereit, der nur im Panel-Dokument gerendert wird."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Painel de voz",
+    "description": "Hospeda o daemon do painel de voz e o cliente de navegador que é renderizado apenas no documento do painel."
+  }
+}

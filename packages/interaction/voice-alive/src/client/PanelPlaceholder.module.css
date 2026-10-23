@@ -1,0 +1,17 @@
+/* Temporary panel placeholder. Monochrome only; the orb owns the real
+   surface and its tokens. */
+
+.panel {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+}
+
+.orb {
+  width: 148px;
+  height: 148px;
+  border-radius: 50%;
+  corner-shape: round;
+  background: #f5f5f5;
+  opacity: 0.92;
+}

@@ -1,0 +1,13 @@
+/* Panel document frame: the shell owns the window backdrop, so the document
+   itself stays transparent and the root fills the view. */
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: transparent;
+}
+
+#root {
+  min-height: 100vh;
+}

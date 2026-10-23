@@ -1,0 +1,11 @@
+# The voice panel layer over `dsh-base`.
+#
+# One row, inserted after the base tree: the package is dual-face, so the same
+# row mounts the Host daemon and appears in the browser roster through its
+# `dsh.client` declaration. The panel document at
+# `@deepseek-ai/dsh-voice-alive/panel/panel.html` boots that client half; the
+# main chat surface mounts it too but the client plugin stays inert unless the
+# document marks itself as the panel.
+- insert:
+    - id: voice-alive
+      name: '@deepseek-ai/dsh-voice-alive'

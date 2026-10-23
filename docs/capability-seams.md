@@ -238,6 +238,8 @@ flowchart LR
   svc_approval["ctx.approval<br/>Approval seam"]
   pkg_permission_presets["permission-presets"]
   svc_permissionPresets["ctx.permissionPresets<br/>Permission presets"]
+  pkg_voice_alive["voice-alive"]
+  svc_voiceAlive["ctx.voiceAlive<br/>Voice panel daemon"]
   pkg_ptc_runtime["ptc-runtime"]
   svc_ptcRuntime["ctx.ptcRuntime<br/>PTC execution seam"]
   pkg_ptc_runtime_node["ptc-runtime-node"]
@@ -453,6 +455,7 @@ flowchart LR
   pkg_typert_registry --> svc_typert
   pkg_user_approval --> svc_approval
   pkg_user_questions --> svc_userQuestions
+  pkg_voice_alive --> svc_voiceAlive
   pkg_web --> svc_web
   pkg_web_app --> svc_webApp
   pkg_web_deepseek_api --> svc_web
@@ -714,6 +717,7 @@ flowchart LR
 | `ctx.sandboxPolicy` | `core` | [`sandbox-policy`](../packages/sandbox/sandbox-policy) | - | [`bash-sandbox`](../packages/shell/bash-sandbox), [`fs-sandbox`](../packages/fs/fs-sandbox), [`terminal-bash`](../packages/terminal/terminal-bash) | - | The one home for the deployment default mode + workspace root; only the sandboxed executor and provider read the service (the tool layers use the pure `sandbox/mode` fold it also exports). Both enforcing families read it so bash and fs cannot confine to different roots. |
 | `ctx.approval` | `seam` | [`user-approval`](../packages/interaction/user-approval) | - | [`tools`](../packages/core/tools), [`tool-bash`](../packages/shell/tool-bash), [`acp`](../packages/acp/acp) | - | One-shot permission decisions dispatched over the `approval/request` waterfall; answerers are listeners (the ACP bridge for its own agents), absence fails closed to `unavailable`. |
 | `ctx.permissionPresets` | `core` | [`permission-presets`](../packages/interaction/permission-presets) | - | - | - | User-facing preset table (`workspace-write`/`danger-full-access`) bundling the sandbox-mode and approval-policy knobs; a switch writes one `permission/preset` event through to both knob events. |
+| `ctx.voiceAlive` | `service` | [`voice-alive`](../packages/interaction/voice-alive) | - | - | - | Host namespace for the voice panel: the shipped web template mounts the row, the panel document activates the client half, and the package keeps the panel document beside the Host entry. |
 | `ctx.ptcRuntime` | `seam` | [`ptc-runtime`](../packages/ptc-runtime/ptc-runtime) | [`ptc-runtime-node`](../packages/ptc-runtime/ptc-runtime-node), [`experimental-ptc-runtime-python`](../packages/experimental/ptc-runtime-python) | [`tool-executor-ptc`](../packages/core/tool-executor-ptc), [`workflow-ptc`](../packages/workflow/workflow-ptc) | - | Runs programs against host-provided async bindings; tool-executor-ptc owns PTC presentation and workflow-ptc owns workflow orchestration. |
 | `ctx.fs` | `seam` | [`fs`](../packages/fs/fs) | [`fs-local`](../packages/fs/fs-local), [`fs-sandbox`](../packages/fs/fs-sandbox), [`fs-ssh`](../packages/ssh/fs-ssh) | [`tool-fs`](../packages/fs/tool-fs) | [`fs-observation-policy`](../packages/fs/fs-observation-policy) | tool-fs executes read/write/edit through ctx.fs; fs-sandbox fences mutations by the shared sandbox mode; fs-observation-policy contributes observed-state checks through the fs/* event gate. |
 | `ctx.compaction` | `seam` | [`compaction`](../packages/compaction/compaction) | [`compaction-basic`](../packages/compaction/compaction-basic) | [`compaction-basic`](../packages/compaction/compaction-basic) | - | The basic backend consumes post-step pressure and request-error recovery events; there is no model-facing compact tool. |
