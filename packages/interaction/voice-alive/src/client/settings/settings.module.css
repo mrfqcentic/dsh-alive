@@ -169,6 +169,7 @@
   height: 7px;
   margin-top: 7px;
   border-radius: 50%;
+  corner-shape: round;
   background: var(--text-2);
 }
 

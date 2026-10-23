@@ -88,10 +88,12 @@
     border-color var(--dur-1) var(--ease-out),
     color var(--dur-1) var(--ease-out);
 }
-.iconButton:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: var(--glass-stroke);
-  color: var(--text);
+@media (hover: hover) {
+  .iconButton:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--glass-stroke);
+    color: var(--text);
+  }
 }
 .iconButton:active { transform: translateY(1px); }
 .iconButton:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -109,6 +111,7 @@
   width: calc(var(--stage-size) * 1.16);
   height: calc(var(--stage-size) * 1.16);
   border-radius: 50%;
+  corner-shape: round;
   background: radial-gradient(circle, rgba(255, 255, 255, 0.24), transparent 68%);
   filter: blur(18px);
   opacity: 0.45;
@@ -125,6 +128,7 @@
   padding: 0;
   border: 0;
   border-radius: 50%;
+  corner-shape: round;
   background: transparent;
   cursor: pointer;
 }

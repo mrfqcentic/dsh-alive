@@ -77,17 +77,17 @@ The layer is one insert list in `cordis.patch.yml`. Row ids must stay stable: a 
 <a id="model-experience"></a>
 ## Model Experience
 
-None, as the layer mounts a Host service namespace and a panel-only browser client without adding model tools or prompt text.
+Indirectly, through the voice-alive row, which registers the four conductor tools.
 
 #### KV Cache effect
 
-The layer contributes no prompt text; the row it mounts owns any future model-facing behavior.
+Loading the bundle loads that row, so the model-visible tool block and its cache boundary follow the row's definitions.
 
 ## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Host row is a namespace only** — `VoiceAliveService` carries no conductor tools, session binding, audio state, or engines, so the bundle mounts no voice capability yet.
+- **Conductor only** — `VoiceAliveService` carries the four conductor tools and keeps the last binding in memory; the durable binding store, audio state, and speech engines are not part of this layer.
 - **Panel route is outside this layer** — the Desktop protocol handler owns `/voice/*` and must serve the plugin package's `dist/panel/`; the Web server does not expose the panel.
 
 <a id="dev-note"></a>

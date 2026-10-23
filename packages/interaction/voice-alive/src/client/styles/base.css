@@ -52,6 +52,7 @@ code, pre, .mono {
   width: 26px;
   height: 26px;
   border-radius: 50%;
+  corner-shape: round;
   background: radial-gradient(circle at 34% 28%, #dfe3ff, var(--accent) 48%, #2a2f7a);
   box-shadow: 0 0 20px rgba(109, 124, 255, 0.45);
 }
@@ -78,7 +79,9 @@ code, pre, .mono {
   padding: 6px 10px;
   border-radius: var(--r-sm);
 }
-.site-nav a:hover { color: var(--text); background: var(--surface-2); }
+@media (hover: hover) {
+  .site-nav a:hover { color: var(--text); background: var(--surface-2); }
+}
 .site-nav a[aria-current="page"] {
   color: var(--text);
   background: var(--surface-3);
