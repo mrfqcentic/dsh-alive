@@ -19,10 +19,25 @@
       "path": "../../api/session-controller/tsconfig.host.json"
     },
     {
+      "path": "../../boot/app-boot"
+    },
+    {
+      "path": "../../core/session"
+    },
+    {
       "path": "../../core/tools"
     },
     {
+      "path": "../../session/session-persistence"
+    },
+    {
       "path": "../../session/session-title"
+    },
+    {
+      "path": "../../storage/storage-domain"
+    },
+    {
+      "path": "../../util/brand"
     },
     {
       "path": "../../workspace/workspace"

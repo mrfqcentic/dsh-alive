@@ -53,6 +53,7 @@
     "build:panel": "vite build --config panel/vite.config.ts && tsx scripts/assemble-panel.ts"
   },
   "dependencies": {
+    "@deepseek-ai/dsh-brand": "workspace:*",
     "@huggingface/transformers": "3.8.1",
     "kokoro-js": "^1.2.1",
     "onnxruntime-node": "1.21.0",
@@ -71,7 +72,11 @@
     "@deepseek-ai/dsh-host-webserver": "workspace:*",
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-session-persistence": "workspace:*",
     "@deepseek-ai/dsh-session-title": "workspace:*",
+    "@deepseek-ai/dsh-storage": "workspace:*",
+    "@deepseek-ai/dsh-storage-domain": "workspace:*",
+    "@deepseek-ai/dsh-storage-json": "workspace:*",
     "@deepseek-ai/dsh-system-prompt": "workspace:*",
     "@deepseek-ai/dsh-tool-executor-native": "workspace:*",
     "@deepseek-ai/dsh-tools": "workspace:*",
