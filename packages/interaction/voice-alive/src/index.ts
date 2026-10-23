@@ -18,6 +18,18 @@ export type {
   AsrResult,
   AsrStatus,
 } from './engine/types.ts'
+export { createTtsEngine } from './engine/tts.ts'
+export { TtsError } from './engine/tts-types.ts'
+export type {
+  TtsChunk,
+  TtsEngine,
+  TtsErrorCode,
+  TtsRequest,
+  TtsSpawnFn,
+  TtsSpawnOptions,
+  TtsStatus,
+  TtsWorkerProcess,
+} from './engine/tts-types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

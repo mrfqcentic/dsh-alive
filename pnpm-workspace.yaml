@@ -33,6 +33,12 @@ allowBuilds:
   lefthook: true
   # Cross-platform boundary for the persistent PTY backend, including ConPTY on Windows.
   node-pty: true
+  # Kokoro runs through onnxruntime-node; its install script places the native binding the
+  # TTS worker loads. The package is a direct dependency of @deepseek-ai/dsh-voice-alive.
+  onnxruntime-node: true
+  # Transformers.js lists sharp for image pipelines. Voice uses audio only, so its
+  # platform prebuilt is not needed and the script stays denied.
+  sharp: false
   # Pulled in by @earendil-works/pi-ai (optional LLM API backend). pnpm lists
   # them only because they ship lifecycle scripts, but those are no-ops we don't
   # need, so we deny them — install still succeeds.

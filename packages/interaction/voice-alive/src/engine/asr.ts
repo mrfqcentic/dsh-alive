@@ -163,7 +163,7 @@ export function spawnAsrWorker(command: string, args: readonly string[], options
 /**
  * Resolve the worker module beside this one.
  * @param moduleUrl - this module's `import.meta.url`.
- * @returns absolute worker path in source or built mode.
+ * @returns absolute source worker, or the built `./worker` dispatcher.
  */
 export function workerModulePath(moduleUrl: string): string {
   return fileURLToPath(new URL(moduleUrl.endsWith('.ts') ? './asr-worker.ts' : './worker.js', moduleUrl))
@@ -171,11 +171,17 @@ export function workerModulePath(moduleUrl: string): string {
 
 /**
  * Build the worker argv for the current execution mode.
+ *
+ * The built worker is the package's single `./worker` dispatcher, which reads
+ * this role argument and then imports the ASR role module; the TypeScript worker
+ * is launched directly through tsx.
  * @param workerPath - resolved worker module.
  * @returns arguments passed after the executable.
  */
 export function workerLaunchArgs(workerPath: string): string[] {
-  return workerPath.endsWith('.ts') ? ['--import', import.meta.resolve('tsx/esm'), workerPath] : [workerPath]
+  return workerPath.endsWith('.ts')
+    ? ['--import', import.meta.resolve('tsx/esm'), workerPath]
+    : [workerPath, 'asr']
 }
 
 /**

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Give the shipped Web and Desktop profiles a voice panel Host service and a dedicated browser panel. The same dual-face row mounts `ctx.voiceAlive` in the Host and a client entry that renders only inside the panel document. The client stays inert in the main chat surface. The panel document boots the ordinary client kernel with a voice-only roster served from the package's own `dist/panel/`. The panel renders the monochrome orb and its two window controls; settings and history open as separate surfaces of the same document, which `?surface=` selects. The bundle layer composes the row over `dsh-base`.
+Give the shipped Web and Desktop profiles a voice panel Host service and a dedicated browser panel. The same dual-face row mounts `ctx.voiceAlive` in the Host and a client entry that renders only inside the panel document. The client stays inert in the main chat surface. The panel document boots the ordinary client kernel with a voice-only roster served from the package's own `dist/panel/`. The panel renders the monochrome orb and its two window controls; settings and history open as separate surfaces of the same document, which `?surface=` selects. The Host face also exposes both local speech engines, each in its own `ELECTRON_RUN_AS_NODE` child behind the package's single `./worker` entry: `createAsrEngine` transcribes with Whisper or Parakeet, and `createTtsEngine` streams sentence-sized 24 kHz mono WAV chunks from Kokoro. The bundle layer composes the row over `dsh-base`.
 
 ## Table of Contents
 
@@ -56,6 +56,22 @@ const result = await engine.transcribe({ id: 'turn-1', pcm: samples, sampleRate:
 
 The directory must already contain the ONNX weights and `tokens.txt`; this package never downloads them, and a missing or incompatible directory rejects with an `AsrEngineError` instead of starting another model.
 
+### TTS engine
+
+The package root also exports the local Kokoro synthesizer. It splits a reply into sentence-sized jobs, returns each 24 kHz mono 16-bit WAV as soon as it is ready, and keeps the chunks in sentence order.
+
+```ts
+import { createTtsEngine } from '@deepseek-ai/dsh-voice-alive'
+
+const engine = createTtsEngine()
+await engine.load('/path/to/verified/kokoro-onnx', { voice: 'af_heart' })
+await engine.speak({ id: 'turn-1', text: 'Hello there. How are you?' }, chunk => {
+  // chunk.wav is a complete WAV; playback can start before the reply finishes.
+})
+```
+
+The directory must already contain the ONNX model and tokenizer files; remote model loading stays disabled, and a missing directory rejects with a `TtsError` instead of falling back to another model.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -68,10 +84,14 @@ The panel is served as a static document on the shell origin, so no Host request
 
 | Source | Responsibility |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Host `VoiceAliveService` registered as `ctx.voiceAlive`, and the exported ASR seam |
-| [`src/engine/asr.ts`](src/engine/asr.ts) | Host engine: spawn, handshake, serial queue, idle shutdown, typed failures |
-| [`src/engine/asr-worker.ts`](src/engine/asr-worker.ts) | Worker process: JSON-line protocol over stdin and fd 3, sherpa-onnx Whisper/Parakeet |
+| [`src/index.ts`](src/index.ts) | Host `VoiceAliveService` registered as `ctx.voiceAlive`, plus the exported ASR and TTS seams |
+| [`src/engine/asr.ts`](src/engine/asr.ts) | Host ASR engine: spawn, handshake, serial queue, idle shutdown, typed failures |
+| [`src/engine/asr-worker.ts`](src/engine/asr-worker.ts) | ASR worker: JSON-line protocol over stdin and fd 3, sherpa-onnx Whisper/Parakeet |
 | [`src/engine/types.ts`](src/engine/types.ts) | ASR request/result/engine contract and the worker frames |
+| [`src/engine/tts.ts`](src/engine/tts.ts) | Host TTS engine: sentence splitting, ordered streaming, cancellation, idle shutdown |
+| [`src/engine/tts-types.ts`](src/engine/tts-types.ts) | TTS request/chunk/engine contract and the worker frames |
+| [`src/engine/tts-worker.ts`](src/engine/tts-worker.ts) | TTS worker: Kokoro synthesis and WAV framing over stdout |
+| [`src/engine/worker.ts`](src/engine/worker.ts) | Single `./worker` dispatcher that validates the role and loads the ASR or TTS worker |
 | [`src/client/index.ts`](src/client/index.ts) | Panel-document activation gate |
 | [`src/client/mount.tsx`](src/client/mount.tsx) | React root mount, URL-selected surface, and disposal |
 | [`src/client/surfaces.ts`](src/client/surfaces.ts) | Surface registry parsed from `?surface=panel\|settings\|history` |
@@ -115,8 +135,8 @@ The row changes no request assembly, so no prompt segment or cache boundary depe
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Engine not wired to the daemon** — `VoiceAliveService` still has no conductor tools, session binding, or audio state; `createAsrEngine` is exported for the supervisor in ticket 13 to own.
-- **No bundled weights** — the ASR engine reads a model directory supplied by its caller; downloading and verifying Whisper or Parakeet weights is ticket 19's job, so `load` rejects until that directory exists.
+- **Engines not wired to the daemon** — `VoiceAliveService` still has no conductor tools, session binding, or audio state; `createAsrEngine` and `createTtsEngine` are exported for the supervisor in ticket 13 to own.
+- **No bundled weights** — both engines read a model directory supplied by their caller; downloading and verifying Whisper, Parakeet, or Kokoro weights is ticket 19's job, so `load` rejects until that directory exists.
 - **Placeholder settings panes** — the five tabs switch, but each pane is an honest placeholder; the audio, shortcut, model, workspace, and privacy controls attach in later waves, with models, workspaces, and privacy in tickets 19–21.
 - **Fixture history** — the history window lists a fixed in-memory fixture through `createHistorySource`; the durable store replaces that factory in ticket 22.
 - **Local panel state** — the orb reads one client store ([`src/client/panel/state.ts`](src/client/panel/state.ts)) that the audio state machine drives.

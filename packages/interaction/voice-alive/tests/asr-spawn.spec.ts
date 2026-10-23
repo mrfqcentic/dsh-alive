@@ -85,5 +85,7 @@ it('adds the tsx loader only for a TypeScript worker', () => {
     import.meta.resolve('tsx/esm'),
     '/pkg/src/engine/asr-worker.ts',
   ])
-  expect(workerLaunchArgs('/pkg/lib/asr-worker.js')).toEqual(['/pkg/lib/asr-worker.js'])
+  // The built worker is the package's single dispatcher, which selects the ASR
+  // module from this role argument.
+  expect(workerLaunchArgs('/pkg/lib/worker.js')).toEqual(['/pkg/lib/worker.js', 'asr'])
 })
