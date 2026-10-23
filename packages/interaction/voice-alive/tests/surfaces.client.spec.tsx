@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** The surface registry parses the URL selection and maps each id to one placeholder component. */
+/** The surface registry parses the URL selection and maps each id to one component. */
 import { act } from '@testing-library/react'
 import type { Root } from 'react-dom/client'
 import { createRoot } from 'react-dom/client'
@@ -51,12 +51,23 @@ it('maps every surface id to a distinct component', () => {
   expect(new Set(components).size).toBe(SURFACE_IDS.length)
 })
 
-it.each(SURFACE_IDS)('renders the %s surface naming itself', async (surface) => {
-  const host = await renderSurface(surface)
-  const rendered = host.querySelector('[data-voice-surface]')
-  expect(rendered?.getAttribute('data-voice-surface')).toBe(surface)
-  if (surface === 'settings') return
+it('renders the panel placeholder naming its surface', async () => {
+  const host = await renderSurface('panel')
   const placeholder = host.querySelector('[data-voice-surface-stub]')
   expect(placeholder).not.toBeNull()
-  expect(placeholder?.textContent).toContain(surface)
+  expect(placeholder?.getAttribute('data-voice-surface')).toBe('panel')
+  expect(placeholder?.textContent).toContain('panel')
+})
+
+it('renders the settings surface instead of a placeholder', async () => {
+  const host = await renderSurface('settings')
+  expect(host.querySelector('[data-voice-surface="settings"]')).not.toBeNull()
+  expect(host.querySelector('[data-voice-surface-stub]')).toBeNull()
+})
+
+it('renders the history window for the history surface', async () => {
+  const host = await renderSurface('history')
+  expect(host.querySelector('[data-voice-surface="history"]')).not.toBeNull()
+  expect(host.querySelector('[data-voice-surface-stub]')).toBeNull()
+  expect(host.querySelector('.voice-history-window')).not.toBeNull()
 })
