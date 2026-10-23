@@ -1,0 +1,190 @@
+/* Settings window layout. Every value resolves from the copied design tokens. */
+
+.surface {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  border: 1px solid var(--glass-stroke-strong);
+  border-radius: var(--r-xl);
+  background: linear-gradient(155deg, rgba(36, 36, 36, 0.82), rgba(12, 12, 12, 0.76));
+  backdrop-filter: blur(var(--blur)) saturate(175%) brightness(1.05);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(175%) brightness(1.05);
+  box-shadow:
+    var(--glass-shadow),
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.32);
+  color: var(--text);
+}
+
+.header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-5) var(--s-6) 0;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-xl);
+  line-height: var(--lh-tight);
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s-1);
+  padding-top: var(--s-1);
+}
+
+.subtitle {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.surface .tabStrip {
+  flex: 0 0 auto;
+  margin-top: var(--s-4);
+  padding: 0 var(--s-5);
+  gap: var(--s-1);
+  border-bottom: 1px solid var(--line);
+}
+
+.tab {
+  padding: var(--s-3) var(--s-3);
+  font-size: var(--fs-sm);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.paneRegion {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.pane {
+  padding: var(--s-5) var(--s-6) var(--s-6);
+}
+
+.pane:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -4px;
+}
+
+.paneHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin-bottom: var(--s-4);
+}
+
+.paneTitle {
+  margin: 0;
+}
+
+.paneLede {
+  margin: var(--s-1) 0 0;
+  max-width: 60ch;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.emptyBody {
+  max-width: 46ch;
+  font-size: var(--fs-sm);
+}
+
+.actions {
+  display: flex;
+  gap: var(--s-2);
+  margin-top: var(--s-4);
+}
+
+.foot {
+  margin: var(--s-4) 0 0;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+}
+
+.cardCopy {
+  margin: var(--s-2) 0 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.chord {
+  display: flex;
+  gap: var(--s-2);
+  margin: var(--s-3) 0;
+}
+
+.chordKey {
+  display: grid;
+  place-items: center;
+  min-width: var(--control-lg);
+  height: var(--control-lg);
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--fs-base);
+}
+
+.statements {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.statement {
+  display: flex;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.statementMark {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: var(--text-2);
+}
+
+.statementBody {
+  display: grid;
+  gap: 2px;
+}
+
+.statementTitle {
+  font-size: var(--fs-base);
+  font-weight: var(--weight-medium);
+}
+
+.statementCopy {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}

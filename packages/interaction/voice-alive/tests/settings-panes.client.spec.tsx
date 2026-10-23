@@ -1,0 +1,70 @@
+// @vitest-environment jsdom
+/** Each settings pane renders its own honest placeholder and no working control. */
+import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, expect, it } from 'vitest'
+import { copy } from '../src/client/settings/locales.ts'
+import { AudioPane } from '../src/client/settings/panes/audio.tsx'
+import { ModelsPane } from '../src/client/settings/panes/models.tsx'
+import { PrivacyPane } from '../src/client/settings/panes/privacy.tsx'
+import { ShortcutsPane } from '../src/client/settings/panes/shortcuts.tsx'
+import { WorkspacesPane } from '../src/client/settings/panes/workspaces.tsx'
+
+afterEach(() => { cleanup() })
+
+function expectHeading(title: string, description: string, badge: string, foot: string): void {
+  expect(screen.getByRole('heading', { name: title })).toBeTruthy()
+  expect(screen.getByText(description)).toBeTruthy()
+  expect(screen.getByText(badge)).toBeTruthy()
+  expect(screen.getByText(foot)).toBeTruthy()
+}
+
+it('renders the Models placeholder with a disabled download action', () => {
+  render(<ModelsPane />)
+  expectHeading(copy.models.title, copy.models.description, copy.models.badge, copy.models.foot)
+  expect(screen.getByText(copy.models.emptyTitle)).toBeTruthy()
+  expect(screen.getByText(copy.models.emptyBody)).toBeTruthy()
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: copy.models.action }).disabled).toBe(true)
+})
+
+it('renders the Workspaces placeholder with a disabled add-folder action', () => {
+  render(<WorkspacesPane />)
+  expectHeading(copy.workspaces.title, copy.workspaces.description, copy.workspaces.badge, copy.workspaces.foot)
+  expect(screen.getByText(copy.workspaces.emptyTitle)).toBeTruthy()
+  expect(screen.getByText(copy.workspaces.emptyBody)).toBeTruthy()
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: copy.workspaces.action }).disabled).toBe(true)
+})
+
+it('renders the Audio placeholder with disabled device selects and test tone', () => {
+  render(<AudioPane />)
+  expectHeading(copy.audio.title, copy.audio.description, copy.audio.badge, copy.audio.foot)
+
+  const input = screen.getByLabelText<HTMLSelectElement>(copy.audio.inputLabel)
+  const output = screen.getByLabelText<HTMLSelectElement>(copy.audio.outputLabel)
+  expect(input.disabled).toBe(true)
+  expect(output.disabled).toBe(true)
+  expect(input.selectedOptions[0]?.textContent).toBe(copy.audio.systemDefault)
+  expect(output.selectedOptions[0]?.textContent).toBe(copy.audio.systemDefault)
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: copy.audio.action }).disabled).toBe(true)
+})
+
+it('renders the Shortcuts placeholder with the default chord and disabled actions', () => {
+  render(<ShortcutsPane />)
+  expectHeading(copy.shortcuts.title, copy.shortcuts.description, copy.shortcuts.badge, copy.shortcuts.foot)
+  expect(screen.getByText(copy.shortcuts.summonTitle)).toBeTruthy()
+  expect(screen.getByText(copy.shortcuts.modifier)).toBeTruthy()
+  expect(screen.getByText(copy.shortcuts.key)).toBeTruthy()
+  expect(screen.getByText(copy.shortcuts.summonBody)).toBeTruthy()
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: copy.shortcuts.record }).disabled).toBe(true)
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: copy.shortcuts.reset }).disabled).toBe(true)
+})
+
+it('renders the Privacy statements without interactive controls', () => {
+  render(<PrivacyPane />)
+  expectHeading(copy.privacy.title, copy.privacy.description, copy.privacy.badge, copy.privacy.foot)
+  for (const statement of copy.privacy.statements) {
+    expect(screen.getByText(statement.title)).toBeTruthy()
+    expect(screen.getByText(statement.body)).toBeTruthy()
+  }
+  expect(screen.queryAllByRole('button')).toHaveLength(0)
+  expect(screen.queryAllByRole('combobox')).toHaveLength(0)
+})
