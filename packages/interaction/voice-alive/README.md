@@ -42,6 +42,20 @@ The row takes no configuration; model, audio-device, and binding settings attach
 
 The Host half registers `ctx.voiceAlive`. The browser half activates only when the document carries `data-dsh-voice-panel` on `<html>`, which is exactly the panel document.
 
+### ASR engine
+
+The package root also exports the serial local recognizer the daemon will drive. It spawns one `ELECTRON_RUN_AS_NODE` child, loads exactly one Whisper or Parakeet model from a caller-supplied directory, and never falls back to another model.
+
+```ts
+import { createAsrEngine } from '@deepseek-ai/dsh-voice-alive'
+
+const engine = createAsrEngine()
+await engine.load('whisper', '/path/to/verified/whisper-onnx')
+const result = await engine.transcribe({ id: 'turn-1', pcm: samples, sampleRate: 16000 })
+```
+
+The directory must already contain the ONNX weights and `tokens.txt`; this package never downloads them, and a missing or incompatible directory rejects with an `AsrEngineError` instead of starting another model.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -54,7 +68,10 @@ The panel is served as a static document on the shell origin, so no Host request
 
 | Source | Responsibility |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Host `VoiceAliveService` registered as `ctx.voiceAlive` |
+| [`src/index.ts`](src/index.ts) | Host `VoiceAliveService` registered as `ctx.voiceAlive`, and the exported ASR seam |
+| [`src/engine/asr.ts`](src/engine/asr.ts) | Host engine: spawn, handshake, serial queue, idle shutdown, typed failures |
+| [`src/engine/asr-worker.ts`](src/engine/asr-worker.ts) | Worker process: JSON-line protocol over stdin and fd 3, sherpa-onnx Whisper/Parakeet |
+| [`src/engine/types.ts`](src/engine/types.ts) | ASR request/result/engine contract and the worker frames |
 | [`src/client/index.ts`](src/client/index.ts) | Panel-document activation gate |
 | [`src/client/mount.tsx`](src/client/mount.tsx) | React root mount, URL-selected surface, and disposal |
 | [`src/client/surfaces.ts`](src/client/surfaces.ts) | Surface registry parsed from `?surface=panel\|settings\|history` |
@@ -98,7 +115,8 @@ The row changes no request assembly, so no prompt segment or cache boundary depe
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Empty Host namespace** — `VoiceAliveService` has no conductor tools, session binding, audio state, or engines.
+- **Engine not wired to the daemon** — `VoiceAliveService` still has no conductor tools, session binding, or audio state; `createAsrEngine` is exported for the supervisor in ticket 13 to own.
+- **No bundled weights** — the ASR engine reads a model directory supplied by its caller; downloading and verifying Whisper or Parakeet weights is ticket 19's job, so `load` rejects until that directory exists.
 - **Placeholder settings panes** — the five tabs switch, but each pane is an honest placeholder; the audio, shortcut, model, workspace, and privacy controls attach in later waves, with models, workspaces, and privacy in tickets 19–21.
 - **Fixture history** — the history window lists a fixed in-memory fixture through `createHistorySource`; the durable store replaces that factory in ticket 22.
 - **Local panel state** — the orb reads one client store ([`src/client/panel/state.ts`](src/client/panel/state.ts)) that the audio state machine drives.

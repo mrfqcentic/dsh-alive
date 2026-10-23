@@ -42,6 +42,20 @@ kind: "package-reference"
 
 Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带有 `data-dsh-voice-panel` 时激活，而面板文档正是如此。
 
+### ASR 引擎
+
+包根还导出守护进程将要驱动的串行本地识别器。它启动一个 `ELECTRON_RUN_AS_NODE` 子进程，从调用方提供的目录加载且只加载一个 Whisper 或 Parakeet 模型，绝不会回退到另一个模型。
+
+```ts
+import { createAsrEngine } from '@deepseek-ai/dsh-voice-alive'
+
+const engine = createAsrEngine()
+await engine.load('whisper', '/path/to/verified/whisper-onnx')
+const result = await engine.transcribe({ id: 'turn-1', pcm: samples, sampleRate: 16000 })
+```
+
+该目录必须已包含 ONNX 权重与 `tokens.txt`；此包从不下载它们，缺失或不兼容的目录会以 `AsrEngineError` 拒绝，而不是启动另一个模型。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -54,7 +68,10 @@ Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带
 
 | 源码 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 注册为 `ctx.voiceAlive` 的 Host `VoiceAliveService` |
+| [`src/index.ts`](src/index.ts) | 注册为 `ctx.voiceAlive` 的 Host `VoiceAliveService`，以及导出的 ASR 接缝 |
+| [`src/engine/asr.ts`](src/engine/asr.ts) | Host 引擎：启动、握手、串行队列、空闲关闭与类型化失败 |
+| [`src/engine/asr-worker.ts`](src/engine/asr-worker.ts) | Worker 进程：stdin 与 fd 3 上的 JSON 行协议、sherpa-onnx Whisper/Parakeet |
+| [`src/engine/types.ts`](src/engine/types.ts) | ASR 请求/结果/引擎契约与 worker 帧 |
 | [`src/client/index.ts`](src/client/index.ts) | 面板文档激活判定 |
 | [`src/client/mount.tsx`](src/client/mount.tsx) | React 根挂载、按 URL 选择界面与释放 |
 | [`src/client/surfaces.ts`](src/client/surfaces.ts) | 从 `?surface=panel\|settings\|history` 解析的界面注册表 |
@@ -98,7 +115,8 @@ Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **空的 Host 命名空间** — `VoiceAliveService` 尚无 conductor 工具、会话绑定、音频状态或引擎。
+- **引擎尚未接入守护进程** — `VoiceAliveService` 仍无 conductor 工具、会话绑定或音频状态；`createAsrEngine` 已导出，供工单 13 的监督器拥有。
+- **不捆绑权重** — ASR 引擎读取调用方提供的模型目录；下载并校验 Whisper 或 Parakeet 权重属于工单 19 的职责，因此在该目录存在之前 `load` 会拒绝。
 - **占位 settings 面板** — 五个标签页可以切换，但每个面板都是如实的占位实现；音频、快捷键、模型、工作区与隐私控件在后续波次中接入，其中模型、工作区与隐私属于工单 19–21。
 - **Fixture 历史** — 历史窗口通过 `createHistorySource` 列出一份固定的内存 Fixture；持久化存储将在工单 22 中替换该工厂。
 - **本地面板状态** — Orb 读取一个客户端存储（[`src/client/panel/state.ts`](src/client/panel/state.ts)），由音频状态机驱动。

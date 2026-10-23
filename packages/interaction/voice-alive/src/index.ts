@@ -8,6 +8,17 @@
 
 import { Service, type Context } from '@deepseek-ai/cordis'
 
+export { AsrEngineError, createAsrEngine } from './engine/asr.ts'
+export type {
+  AsrEngine,
+  AsrEngineErrorCode,
+  AsrEngineOptions,
+  AsrModelId,
+  AsrRequest,
+  AsrResult,
+  AsrStatus,
+} from './engine/types.ts'
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     /** The voice panel daemon mounted by this row. */
