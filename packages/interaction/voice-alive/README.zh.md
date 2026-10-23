@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与专用浏览器面板。同一条双面配置行在 Host 中挂载 `ctx.voiceAlive`，并提供仅在面板文档内渲染的客户端条目。该客户端在主聊天界面保持惰性。面板文档以语音专用名册启动常规客户端内核，名册由包自身的 `dist/panel/` 提供。面板渲染单色 Orb 与其两个窗口控件；settings 与 history 作为同一文档的独立界面打开，由 `?surface=` 选择。Host 半边还暴露两个本地语音引擎，各自运行在包内单一 `./worker` 条目之后的 `ELECTRON_RUN_AS_NODE` 子进程中：`createAsrEngine` 用 Whisper 或 Parakeet 转写，`createTtsEngine` 从 Kokoro 流式输出按句切分的 24 kHz 单声道 WAV 分块。`createEngineSupervisor` 为每类引擎各持有恰好一个模型，在各自的串行通道上执行该引擎的模型切换与任务，并报告两者的健康状态。Host 配置行还注册四个 conductor 工具，用于列出工作区并把面板绑定到新建或恢复的会话，并在重启后恢复其绑定的会话。Bundle 层把这条配置行组合到 `dsh-base` 之上。
+为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与专用浏览器面板。面板以来自自身 `dist/panel/` 的语音专用名册启动客户端内核，渲染单色 Orb 与窗口控件，并把 settings 与 history 作为由 `?surface=` 选择的界面打开。Host 在 `ELECTRON_RUN_AS_NODE` worker 中运行两个语音引擎：`createAsrEngine` 用 Whisper 或 Parakeet 转写，`createTtsEngine` 流式输出 Kokoro 分块，`createEngineSupervisor` 为每类引擎持有恰好一个模型并报告健康状态。Host 配置行注册四个 conductor 工具，用于绑定新建或恢复的会话，并在重启后恢复该绑定。Bundle 层把这条配置行组合到 `dsh-base` 之上。
 
 ## 目录
 
