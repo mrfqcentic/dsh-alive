@@ -34,7 +34,8 @@ export function voiceWorkspaceDirectory(home: string): string {
 /**
  * Build the binding dependencies from the composed host services. The caller
  * must inject `storageDomain`, `workspaceRegistry`, `sessions`,
- * `sessionPersistence`, and `sessionController`.
+ * `sessionPersistence`, and `sessionController`; creating the Audio workspace
+ * additionally requires the launch profile's `profileContext` for its home.
  * @param ctx - Host context carrying those services.
  * @returns dependencies for {@link createVoiceBinding}.
  */
