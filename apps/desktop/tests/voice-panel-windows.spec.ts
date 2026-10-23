@@ -48,7 +48,7 @@ const electron = vi.hoisted(() => {
       return window
     }),
     app: { on: vi.fn(), off: vi.fn(), focus: vi.fn() },
-    globalShortcut: { register: vi.fn(() => true), unregister: vi.fn() },
+    globalShortcut: { register: vi.fn((_accelerator: string, _callback: () => void) => true), unregister: vi.fn() },
     ipcMain: {
       handle: vi.fn((channel: string, handler: (event: unknown, value?: unknown) => unknown) => {
         handlers.set(channel, handler)
@@ -83,6 +83,8 @@ const {
 const USER_DATA = mkdtempSync(join(tmpdir(), 'desktop-voice-surfaces-'))
 const PANEL_STATE_CHANNEL = 'dsh-voice:panel-state'
 const SURFACE_CHANNEL = 'dsh-voice:open-surface'
+const CLOSE_CHANNEL = 'dsh-voice:close'
+const TOGGLE_MUTE_CHANNEL = 'dsh-voice:toggle-mute'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -102,6 +104,16 @@ function surfaceHandler(): (event: unknown, value?: unknown) => unknown {
   const handler = electron.handlers.get(SURFACE_CHANNEL)
   if (handler === undefined) throw new Error('the surface channel is not registered')
   return handler
+}
+
+function closeHandler(): (event: unknown) => unknown {
+  const handler = electron.handlers.get(CLOSE_CHANNEL)
+  if (handler === undefined) throw new Error('the close channel is not registered')
+  return handler
+}
+
+function summonChord(): () => void {
+  return electron.globalShortcut.register.mock.calls[0]![1] as () => void
 }
 
 function openSurface(voice: ReturnType<typeof createVoicePanel>, surface: 'settings' | 'history'): void {
@@ -193,20 +205,90 @@ describe('desktop voice surface windows', () => {
     expect(surface.show).not.toHaveBeenCalled()
   })
 
-  it('closes a surface on Escape and ignores every other key', () => {
+  it('leaves Escape to the surface renderer and keeps it for the panel', () => {
     const voice = createVoicePanel(USER_DATA, () => false)
     openSurface(voice, 'history')
+    const panel = electron.windows[0]!
     const surface = electron.windows[1]!
-    const key = surface.webContents.on.mock.calls.find(([name]) => name === 'before-input-event')![1] as
+
+    expect(surface.webContents.on.mock.calls.some(([name]) => name === 'before-input-event')).toBe(false)
+
+    const key = panel.webContents.on.mock.calls.find(([name]) => name === 'before-input-event')![1] as
       (event: { preventDefault(): void }, input: { type: string; key: string }) => void
-    key({ preventDefault: vi.fn() }, { type: 'keyUp', key: 'Escape' })
-    key({ preventDefault: vi.fn() }, { type: 'keyDown', key: 'Enter' })
-    expect(surface.close).not.toHaveBeenCalled()
     const event = { preventDefault: vi.fn() }
     key(event, { type: 'keyDown', key: 'Escape' })
     expect(event.preventDefault).toHaveBeenCalledOnce()
-    expect(surface.close).toHaveBeenCalledOnce()
+    expect(panel.hide).toHaveBeenCalledOnce()
     voice.dispose()
+  })
+
+  it('closes only the surface window that asked to close', () => {
+    const voice = createVoicePanel(USER_DATA, () => false)
+    openSurface(voice, 'settings')
+    openSurface(voice, 'history')
+    const panel = electron.windows[0]!
+    const settings = electron.windows[1]!
+    const history = electron.windows[2]!
+
+    closeHandler()(eventFor(history))
+    expect(history.close).toHaveBeenCalledOnce()
+    expect(settings.close).not.toHaveBeenCalled()
+    expect(panel.close).not.toHaveBeenCalled()
+    expect(panel.hide).not.toHaveBeenCalled()
+    voice.dispose()
+  })
+
+  it('hides the panel instead of destroying it when the panel asks to close', () => {
+    const voice = createVoicePanel(USER_DATA, () => false)
+    const panel = electron.windows[0]!
+    panel.isVisible.mockReturnValue(true)
+
+    closeHandler()(eventFor(panel))
+    expect(panel.hide).toHaveBeenCalledOnce()
+    expect(panel.close).not.toHaveBeenCalled()
+    expect(panel.destroy).not.toHaveBeenCalled()
+    voice.dispose()
+  })
+
+  it('rejects close requests from unowned frames and after disposal', () => {
+    const voice = createVoicePanel(USER_DATA, () => false)
+    const panel = electron.windows[0]!
+    const handler = closeHandler()
+    expect(() => handler({ sender: {}, senderFrame: {} })).toThrow(/unowned frame/u)
+    expect(() => handler({ sender: panel.webContents, senderFrame: {} })).toThrow(/unowned frame/u)
+    voice.dispose()
+    expect(() => handler(eventFor(panel))).toThrow(/unowned frame/u)
+  })
+
+  it('toggles mute on Option+Space while the panel is visible and keeps it visible', () => {
+    createVoicePanel(USER_DATA, () => false)
+    const panel = electron.windows[0]!
+    panel.isVisible.mockReturnValue(true)
+
+    summonChord()()
+    expect(panel.webContents.send).toHaveBeenCalledWith(TOGGLE_MUTE_CHANNEL)
+    expect(panel.hide).not.toHaveBeenCalled()
+    expect(panel.show).not.toHaveBeenCalled()
+  })
+
+  it('shows and focuses the hidden panel on Option+Space without toggling mute', () => {
+    createVoicePanel(USER_DATA, () => false)
+    const panel = electron.windows[0]!
+
+    summonChord()()
+    expect(panel.show).toHaveBeenCalledOnce()
+    expect(panel.focus).toHaveBeenCalledOnce()
+    expect(panel.webContents.send).not.toHaveBeenCalled()
+  })
+
+  it('stops delivering mute toggles once the panel is destroyed', () => {
+    createVoicePanel(USER_DATA, () => false)
+    const panel = electron.windows[0]!
+    panel.isVisible.mockReturnValue(true)
+    panel.isDestroyed.mockReturnValue(true)
+
+    summonChord()()
+    expect(panel.webContents.send).not.toHaveBeenCalled()
   })
 
   it('frees a closed surface and ignores a stale close from an earlier window', () => {
