@@ -42,7 +42,7 @@ export function workerRole(value: string | undefined): WorkerRole | undefined {
 export function roleInvocation(
   role: WorkerRole,
   dispatcherUrl: string,
-  argv: readonly string[] = process.argv,
+  argv: readonly string[],
 ): { readonly moduleUrl: URL; readonly argv: string[] } {
   const moduleUrl = new URL(`./${role}-worker.js`, dispatcherUrl)
   return {
@@ -76,9 +76,14 @@ if (isDispatcherInvocation(process.argv, import.meta.url)) {
     )
     process.exitCode = 2
   } else {
-    const invocation = roleInvocation(role, import.meta.url)
+    const invocation = roleInvocation(role, import.meta.url, process.argv)
     process.argv.splice(0, process.argv.length, ...invocation.argv)
-    await import(invocation.moduleUrl.href)
+    // The role module owns the process from here: it installs its own protocol
+    // listeners and keeps the event loop alive while it serves the Host.
+    void import(invocation.moduleUrl.href).catch((error: unknown) => {
+      process.stderr.write(`voice worker: the ${role} module failed to load: ${String(error)}\n`)
+      process.exitCode = 1
+    })
   }
 }
 /* v8 ignore stop */
