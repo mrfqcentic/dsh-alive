@@ -236,6 +236,8 @@ export function createPlayback(options: { deviceId?: string } = {}): PlaybackCon
 
   function readLevel(): number {
     if (!wiring) return 0
+    // After stop or drain the analyser can still hold the last render quantum; silence is the contract.
+    if (active.size === 0) return 0
     const { analyser, samples } = wiring
     analyser.getFloatTimeDomainData(samples)
     let sum = 0

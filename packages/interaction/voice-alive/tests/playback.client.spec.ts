@@ -116,6 +116,7 @@ describe('stop', () => {
     const idle = playback.idle
     const rejected = vi.fn()
     void idle.catch(rejected)
+    audio.context().analyser.signal = 1
 
     playback.stop()
 
