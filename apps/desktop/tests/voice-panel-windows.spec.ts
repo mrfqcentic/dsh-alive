@@ -84,6 +84,7 @@ const USER_DATA = mkdtempSync(join(tmpdir(), 'desktop-voice-surfaces-'))
 const PANEL_STATE_CHANNEL = 'dsh-voice:panel-state'
 const SURFACE_CHANNEL = 'dsh-voice:open-surface'
 const CLOSE_CHANNEL = 'dsh-voice:close'
+const TOGGLE_MUTE_CHANNEL = 'dsh-voice:toggle-mute'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -109,6 +110,10 @@ function closeHandler(): (event: unknown) => unknown {
   const handler = electron.handlers.get(CLOSE_CHANNEL)
   if (handler === undefined) throw new Error('the close channel is not registered')
   return handler
+}
+
+function summonChord(): () => void {
+  return electron.globalShortcut.register.mock.calls[0]![1] as () => void
 }
 
 function openSurface(voice: ReturnType<typeof createVoicePanel>, surface: 'settings' | 'history'): void {
@@ -253,6 +258,37 @@ describe('desktop voice surface windows', () => {
     expect(() => handler({ sender: panel.webContents, senderFrame: {} })).toThrow(/unowned frame/u)
     voice.dispose()
     expect(() => handler(eventFor(panel))).toThrow(/unowned frame/u)
+  })
+
+  it('toggles mute on Option+Space while the panel is visible and keeps it visible', () => {
+    createVoicePanel(USER_DATA, () => false)
+    const panel = electron.windows[0]!
+    panel.isVisible.mockReturnValue(true)
+
+    summonChord()()
+    expect(panel.webContents.send).toHaveBeenCalledWith(TOGGLE_MUTE_CHANNEL)
+    expect(panel.hide).not.toHaveBeenCalled()
+    expect(panel.show).not.toHaveBeenCalled()
+  })
+
+  it('shows and focuses the hidden panel on Option+Space without toggling mute', () => {
+    createVoicePanel(USER_DATA, () => false)
+    const panel = electron.windows[0]!
+
+    summonChord()()
+    expect(panel.show).toHaveBeenCalledOnce()
+    expect(panel.focus).toHaveBeenCalledOnce()
+    expect(panel.webContents.send).not.toHaveBeenCalled()
+  })
+
+  it('stops delivering mute toggles once the panel is destroyed', () => {
+    createVoicePanel(USER_DATA, () => false)
+    const panel = electron.windows[0]!
+    panel.isVisible.mockReturnValue(true)
+    panel.isDestroyed.mockReturnValue(true)
+
+    summonChord()()
+    expect(panel.webContents.send).not.toHaveBeenCalled()
   })
 
   it('frees a closed surface and ignores a stale close from an earlier window', () => {

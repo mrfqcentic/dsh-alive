@@ -55,3 +55,17 @@ it('closes the sender window through the typed close channel', async () => {
   await expect(api.close()).resolves.toBeUndefined()
   expect(electron.invoke).toHaveBeenCalledWith('dsh-voice:close')
 })
+
+it('delivers mute toggles until the listener unsubscribes', async () => {
+  await import('../src/preload-voice.ts')
+  const api = electron.exposed.api
+  if (api === undefined) throw new Error('the preload exposed no bridge')
+  const listener = vi.fn()
+  const stop = api.onToggleMute(listener)
+  const handler = electron.on.mock.calls.at(-1)![1] as () => void
+  expect(electron.on).toHaveBeenCalledWith('dsh-voice:toggle-mute', handler)
+  handler()
+  expect(listener).toHaveBeenCalledOnce()
+  stop()
+  expect(electron.off).toHaveBeenCalledWith('dsh-voice:toggle-mute', handler)
+})
