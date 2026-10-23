@@ -569,6 +569,21 @@ describe('binding failures', () => {
     expectUnbound(harness)
   })
 
+  it('keeps the previous binding when a later write fails', async () => {
+    const harness = await mount({
+      workspaces: [workspace('ws-voice', 'Voice', '/tmp/voice', ['a', 'b'])],
+      summaries: [summary('a', 1, { title: 'A' }), summary('b', 2, { title: 'B' })],
+    })
+    harness.conductor.setBinding({ bind: async () => {} })
+    await run(harness.ctx, 'voice_resume_session', { workspace: 'Voice', session_id: 'a' })
+    harness.conductor.setBinding({ bind: async () => { throw new Error('storage offline') } })
+
+    const message = await fail(harness.ctx, 'voice_resume_session', { workspace: 'Voice', session_id: 'b' })
+
+    expect(message).toContain('storage offline')
+    expect(harness.conductor.currentBinding).toEqual({ sessionId: 'a', workspaceId: 'ws-voice' })
+  })
+
   it('installs a durable sink and still reports the processed binding', async () => {
     const harness = await mount({
       workspaces: [workspace('ws-voice', 'Voice', '/tmp/voice', ['a'])],
