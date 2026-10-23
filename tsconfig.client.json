@@ -38,6 +38,11 @@
     "packages/*/*/tests/**/*.client.ts",
     // Client package outside packages/client with a local CSS module face.
     "packages/extensions/ui-cordis/src/css-modules.d.ts",
+    // The voice panel document is part of the package's Client face; its own
+    // tsconfig would sit inside a split Host/Client project, which the
+    // reference-face rule forbids.
+    "packages/interaction/voice-alive/panel/env.d.ts",
+    "packages/interaction/voice-alive/panel/main.ts",
     "packages/client/tsdown.client.ts",
     "scripts/client-build-environment.ts",
     "scripts/shipped-locales.ts",
@@ -66,8 +71,7 @@
     { "path": "./apps/desktop/tsconfig.client.json" },
     { "path": "./packages/util/atomic-write" },
     { "path": "./packages/experimental/client-ui-voice-input" },
-    { "path": "./packages/interaction/voice-alive" },
-    { "path": "./packages/interaction/voice-alive/panel" },
+    { "path": "./packages/interaction/voice-alive/tsconfig.client.json" },
     { "path": "./packages/experimental/client-ui-claude-code-mods" },
 
     { "path": "./packages/client/ui-sidebar-terminal" },
