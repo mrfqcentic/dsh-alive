@@ -61,7 +61,7 @@ Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带
 | [`src/client/surfaces/`](src/client/surfaces/) | 每个界面一个组件：panel、settings、history |
 | [`src/client/orb/`](src/client/orb/) | 单色 Orb 画布、其调色板与运动数学 |
 | [`src/client/panel/`](src/client/panel/) | 面板 Orb 状态存储、shell 桥接与窗口控件 |
-| [`src/client/audio/`](src/client/audio/) | 16 kHz 麦克风采集、VAD 分段、词门禁与输入设备枚举；按序 WAV 播放、输出设备路由、输出电平与回声参考节点 |
+| [`src/client/audio/`](src/client/audio/) | 16 kHz 麦克风采集、VAD 分段、词门禁与输入设备枚举；按序 WAV 播放、输出设备路由、输出电平与回声参考节点；串联采集、播放与静音的五态音频状态机 |
 | [`src/client/settings/`](src/client/settings/) | 五标签页 settings 框架及其占位面板 |
 | [`src/client/history/`](src/client/history/) | 历史列表、搜索、删除流程与 `HistorySource` 接缝 |
 | [`src/client/styles/`](src/client/styles/) | 从 `voice-plugin/design/` 复制的设计系统样式表 |
@@ -101,7 +101,7 @@ Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带
 - **空的 Host 命名空间** — `VoiceAliveService` 尚无 conductor 工具、会话绑定、音频状态或引擎。
 - **占位 settings 面板** — 五个标签页可以切换，但每个面板都是如实的占位实现；音频、快捷键、模型、工作区与隐私控件在后续波次中接入，其中模型、工作区与隐私属于工单 19–21。
 - **Fixture 历史** — 历史窗口通过 `createHistorySource` 列出一份固定的内存 Fixture；持久化存储将在工单 22 中替换该工厂。
-- **本地面板状态** — Orb 读取一个客户端存储（[`src/client/panel/state.ts`](src/client/panel/state.ts)），音频状态机从工单 10 起驱动它。
+- **本地面板状态** — Orb 读取一个客户端存储（[`src/client/panel/state.ts`](src/client/panel/state.ts)），由音频状态机驱动。
 - **基于能量的词门禁** — 默认词门禁只按分段时长与电平判断，因此音乐、稳态音调或持续轰鸣可能通过。它衡量的是闭合分段而非单个词：560 ms 分段中的 300 ms 词可以通过，而 150 ms 的词低于 450 ms 的下限，会被丢弃。工单 11 将通过同一个注入的 `WordGate` 换成基于转写的词门禁。
 - **未验证真实麦克风** — 采集、Worklet 加载、重采样与热插拔都在伪 Web Audio 图上测试。真实硬件、浏览器权限提示与 macOS TCC 路径仍需人工测试。
 - **面板路由由 shell 拥有** — 此包输出带文档相对 URL 的 `dist/panel/`，但 Desktop 协议处理器必须把 `/voice/*` 映射到它。Web 服务器不提供面板。
