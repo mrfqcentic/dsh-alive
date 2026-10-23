@@ -16,6 +16,13 @@ import { PANEL_STATES, panelState } from '../src/client/panel/state.ts'
 import { PanelSurface } from '../src/client/surfaces/panel.tsx'
 import css from '../src/client/panel/panel.module.css'
 
+// The panel owns a real audio machine; the surface tests keep the microphone
+// out by replacing capture with an inert controller.
+vi.mock('../src/client/audio/capture.ts', async () => {
+  const { createFakeCapture } = await import('./audio-fakes.client.ts')
+  return { createCapture: () => createFakeCapture().controller }
+})
+
 vi.mock('../src/client/orb/Orb.tsx', async () => {
   const { createElement } = await import('react')
   return {

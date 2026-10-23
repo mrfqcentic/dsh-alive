@@ -9,7 +9,9 @@ const originalGetContext = Object.getOwnPropertyDescriptor(HTMLCanvasElement.pro
 
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  panelState.set('thinking')
+  // The surface starts its audio machine on mount; booting muted keeps the
+  // microphone out of this visual test.
+  panelState.set('muted')
   // jsdom has no canvas backend; the real orb tolerates a null context.
   Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
     configurable: true,
@@ -31,8 +33,11 @@ it('renders the real orb and follows the store', () => {
   const view = render(<PanelSurface surface="panel" />)
   const canvas = view.container.querySelector('canvas')
   if (!(canvas instanceof HTMLCanvasElement)) throw new Error('the panel rendered no orb canvas')
-  expect(canvas.dataset.orbState).toBe('thinking')
+  expect(canvas.dataset.orbState).toBe('muted')
   expect(canvas.getAttribute('aria-hidden')).toBe('true')
+
+  act(() => { panelState.set('thinking') })
+  expect(canvas.dataset.orbState).toBe('thinking')
 
   act(() => { panelState.set('speaking') })
   expect(canvas.dataset.orbState).toBe('speaking')
