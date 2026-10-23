@@ -402,7 +402,7 @@ vi.mock('../src/voice-panel.ts', () => ({
 function configureTestAuthPopup(allow: boolean): void {
   const directory = join(harness.app.getPath('userData'), 'desktop')
   mkdirSync(directory, { recursive: true })
-  writeFileSync(join(directory, 'settings.json'), JSON.stringify({ updates: { allowTestAuthPopupWindow: allow } }))
+  writeFileSync(join(directory, 'settings.json'), JSON.stringify({ updates: { allowTestAuthPopupWindow: allow, autoCheck: true } }))
 }
 
 function invoke(channel: string, origin = channel === DESKTOP_IPC.boot ? 'app' : 'shell', ...args: unknown[]): unknown {
@@ -435,6 +435,11 @@ beforeEach(() => {
   const userData = mkdtempSync(join(tmpdir(), 'dsh-main-user-data-'))
   onTestFinished(() => { rmSync(userData, { recursive: true, force: true }) })
   harness.app.getPath.mockImplementation(name => name === 'userData' ? userData : `desktop-test-${name}`)
+  // Most suites exercise the automatic updater, so they opt in explicitly; the
+  // fork's shipped default is covered by its own test below.
+  mkdirSync(join(userData, 'desktop'), { recursive: true })
+  writeFileSync(join(userData, 'desktop', 'settings.json'),
+    JSON.stringify({ updates: { allowTestAuthPopupWindow: false, autoCheck: true } }))
   harness.dialog.showMessageBox.mockImplementation((options: { title?: string }) => {
     if (options.title !== en.startupFailed) return Promise.resolve({ response: 1 })
     harness.dialogShown.resolve()
@@ -600,7 +605,7 @@ describe('desktop main startup', () => {
     if (configuration === 'disabled') configureTestAuthPopup(false)
     if (configuration === 'missing-field') {
       configureTestAuthPopup(true)
-      writeFileSync(join(harness.app.getPath('userData'), 'desktop', 'settings.json'), '{}')
+      writeFileSync(join(harness.app.getPath('userData'), 'desktop', 'settings.json'), '{"updates":{"autoCheck":true}}')
     }
     harness.embeddedPolicy = { origin: 'https://policy.example.com', authentication: 'feishu-test', allowedAuthOrigins: ['https://login.example.com'],
       allowedPageOrigins: ['https://downloads.example.com'], intervalMs: 1000, jitter: 0 }
@@ -1595,6 +1600,26 @@ describe('desktop main startup', () => {
     window.emit('closed')
     host.exited.resolve()
     await harness.quitCompleted.promise
+  })
+
+  it('keeps update checks manual under the shipped settings default', async () => {
+    rmSync(join(harness.app.getPath('userData'), 'desktop'), { recursive: true, force: true })
+    const request = vi.fn<typeof fetch>().mockImplementation(async () => Response.json({ code: 0,
+      data: { biz_code: 0, biz_data: null } }))
+    vi.stubGlobal('fetch', request)
+    harness.embeddedPolicy = { origin: 'https://policy.example.com',
+      allowedPageOrigins: ['https://downloads.example.com'], intervalMs: 1000, jitter: 0 }
+    await readyForUpdate()
+    await vi.advanceTimersByTimeAsync(1_000_000)
+    harness.windows[0]!.emit('focus')
+    harness.powerMonitor.emit('resume')
+    await vi.advanceTimersByTimeAsync(1_000_000)
+    expect(request).not.toHaveBeenCalled()
+    expect(harness.updateCheck).not.toHaveBeenCalled()
+    await invoke(DESKTOP_IPC.updatesOpen, 'app')
+    expect(harness.updateCheck).toHaveBeenCalledWith(true)
+    await vi.advanceTimersByTimeAsync(1_000_000)
+    expect(harness.updateCheck).toHaveBeenCalledTimes(1)
   })
 
   it('shares the failed-check deadline across focus and resume, while explicit checks reset polling', async () => {

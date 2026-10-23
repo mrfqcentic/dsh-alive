@@ -672,7 +672,8 @@ async function main(): Promise<void> {
     updateChannel,
   )
 
-  const updateSchedule = new DesktopUpdateSchedule(updates, resolveDesktopUpdateScheduleConfig(process.env))
+  const updateSchedule = new DesktopUpdateSchedule(updates,
+    resolveDesktopUpdateScheduleConfig(process.env, desktopSettings.updates.autoCheck))
 
   const downloadUpdate = async (version: string): Promise<DesktopUpdateState> => {
     void track('desktop_upgrade_click', {})
@@ -954,8 +955,9 @@ async function main(): Promise<void> {
   }
 
   const automaticCheck = (): void => {
-    if (!quitting) void mandatoryPolicy?.check('foreground-or-resume').catch((error: unknown) => { console.error(error) })
-    if (!quitting) void updateSchedule.check().catch((error: unknown) => { console.error(error) })
+    if (quitting || !desktopSettings.updates.autoCheck) return
+    void mandatoryPolicy?.check('foreground-or-resume').catch((error: unknown) => { console.error(error) })
+    void updateSchedule.check().catch((error: unknown) => { console.error(error) })
   }
   powerMonitor.on('resume', automaticCheck)
   app.on('will-quit', () => {
@@ -1352,9 +1354,11 @@ async function main(): Promise<void> {
         if (!wasBlocking) updateDialog.cancel()
       }
       mandatoryUI?.sync()
-      if (state.blocking && !wasBlocking) void updateSchedule.check(false, true).catch((error: unknown) => { console.error(error) })
+      if (state.blocking && !wasBlocking && desktopSettings.updates.autoCheck) {
+        void updateSchedule.check(false, true).catch((error: unknown) => { console.error(error) })
+      }
       wasBlocking = state.blocking
-    }, policyAuth?.request, () => desktopClientMetadata(locale.id))
+    }, policyAuth?.request, () => desktopClientMetadata(locale.id), Math.random, desktopSettings.updates.autoCheck)
     const policy = mandatoryPolicy
     mandatoryUI = new DesktopMandatoryUpdateWindow({
       overlays: updateOverlays,
@@ -1364,9 +1368,11 @@ async function main(): Promise<void> {
       refresh: async () => { await Promise.all([checkPolicyManually(), updateSchedule.check(true)]) },
       download: downloadUpdate, install: version => updates.install(version),
     })
-    void mandatoryPolicy.check('launch').then((state) => {
-      if (app.isPackaged && state.error === 'authentication-required' && !isQuitting()) queuePolicyAuthentication()
-    }).catch((error: unknown) => { console.error(error) })
+    if (desktopSettings.updates.autoCheck) {
+      void mandatoryPolicy.check('launch').then((state) => {
+        if (app.isPackaged && state.error === 'authentication-required' && !isQuitting()) queuePolicyAuthentication()
+      }).catch((error: unknown) => { console.error(error) })
+    }
   }
   automaticCheck()
   await reconcileBackend().catch(() => undefined)

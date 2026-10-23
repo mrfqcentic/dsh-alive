@@ -203,7 +203,7 @@ await configureSupervisor(store, supervisor)
 - **监督器尚未接入守护进程** — `VoiceAliveService` 仍无音频状态；`createEngineSupervisor` 已拥有两个导出的引擎，音频界面将在后续工单中接入。
 - **conductor 绑定尚未持久化** — conductor 通过 `VoiceBindingTarget` 记录绑定，但配置行尚未把自己的持久化绑定存储安装到该接收端，因此 `ctx.voiceConductor.currentBinding` 会在重启后丢失。
 - **不捆绑权重** — 包内不含任何模型字节。Models 面板把 Whisper、Parakeet 与 Kokoro 权重下载并校验到 profile 中；两个引擎仍加载调用方提供的目录，目录缺失时拒绝加载。
-- **四个占位 settings 面板** — 音频、快捷键、工作区与隐私仍是如实的占位实现；Models 面板呈现模型存储的目录状态。
+- **四个占位 settings 面板** — 音频、快捷键与工作区仍是如实的占位实现；Models 面板呈现模型存储的目录状态，隐私面板陈述出站、磁盘位置、保留期限与开关事实，不提供无法改变状态的控制。
 - **Fixture 历史** — 历史窗口通过 `createHistorySource` 列出一份固定的内存 Fixture；持久化存储将在工单 22 中替换该工厂。
 - **本地面板状态** — Orb 读取一个客户端存储（[`src/client/panel/state.ts`](src/client/panel/state.ts)），由音频状态机驱动。
 - **回声防护尚未接入面板** — `createEchoGuard` 已导出，供面板界面拥有。采集通过 `CaptureOptions.frameGate` 接受帧级抽头，音频状态机在拿到防护时应用分段级兜底；面板目前两者都不构造。

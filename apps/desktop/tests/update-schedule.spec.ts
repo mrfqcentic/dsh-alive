@@ -27,7 +27,7 @@ function fixture(jitter = 0, random = () => 0.5) {
   const states: DesktopUpdateState[] = []
   const coordinator = new DesktopUpdateCoordinator((state) => { states.push(state); return state }, async () => true,
     updater, () => true, () => '1.0.0')
-  const schedule = new DesktopUpdateSchedule(coordinator, { intervalMs: 10_000, maxBackoffMs: 40_000, jitter }, random)
+  const schedule = new DesktopUpdateSchedule(coordinator, { intervalMs: 10_000, maxBackoffMs: 40_000, jitter, autoCheck: true }, random)
   cleanup.push(() => { schedule.dispose(); coordinator.dispose() })
   return { schedule, coordinator, states, checkForUpdates, downloadUpdate }
 }
@@ -169,11 +169,36 @@ describe('ordinary update polling disposal', () => {
   })
 })
 
+describe('manual-only update polling', () => {
+  function manualFixture() {
+    const f = fixture()
+    const schedule = new DesktopUpdateSchedule(f.coordinator, { intervalMs: 10_000, maxBackoffMs: 40_000, jitter: 0, autoCheck: false })
+    cleanup.push(() => { schedule.dispose() })
+    return { ...f, schedule }
+  }
+
+  it('ignores automatic callers and never arms a timer, while an explicit check still runs', async () => {
+    const f = manualFixture()
+    await f.schedule.check()
+    expect(f.checkForUpdates).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+    await f.schedule.check(true)
+    expect(f.checkForUpdates).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
+    await vi.advanceTimersByTimeAsync(1_000_000)
+    expect(f.checkForUpdates).toHaveBeenCalledOnce()
+  })
+
+  it('resolves the fork default from settings as manual', () => {
+    expect(resolveDesktopUpdateScheduleConfig({}, false)).toMatchObject({ autoCheck: false })
+  })
+})
+
 describe('ordinary update polling configuration', () => {
   it('resolves defaults and supports an explicit interval longer than the default backoff cap', () => {
-    expect(resolveDesktopUpdateScheduleConfig({})).toEqual({ intervalMs: 600_000, maxBackoffMs: 3_600_000, jitter: 0.2 })
+    expect(resolveDesktopUpdateScheduleConfig({})).toEqual({ intervalMs: 600_000, maxBackoffMs: 3_600_000, jitter: 0.2, autoCheck: true })
     expect(resolveDesktopUpdateScheduleConfig({ DSH_DESKTOP_UPDATE_CHECK_INTERVAL_MS: '7200000' }))
-      .toEqual({ intervalMs: 7_200_000, maxBackoffMs: 7_200_000, jitter: 0.2 })
+      .toEqual({ intervalMs: 7_200_000, maxBackoffMs: 7_200_000, jitter: 0.2, autoCheck: true })
   })
 
   it.each([

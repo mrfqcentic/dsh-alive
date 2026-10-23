@@ -9,3 +9,18 @@
 - insert:
     - id: voice-alive
       name: '@deepseek-ai/dsh-voice-alive'
+
+# Privacy: this layer carries no outbound telemetry. These overrides disable
+# the rows `dsh-base` and `dsh-web-app` insert, including the Desktop-only
+# product analytics pair, whichever profile orders the layers. A disabled row
+# never starts a fiber, so no collector, exporter, or analytics client exists in
+# the composed tree. A later layer can still address the same ids; the last
+# write wins, as for every other row.
+- id: otel
+  disabled: true
+- id: session-telemetry-otel
+  disabled: true
+- id: desktop-product-telemetry
+  disabled: true
+- id: product-analytics
+  disabled: true

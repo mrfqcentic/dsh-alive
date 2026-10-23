@@ -49,13 +49,31 @@ it('renders the Shortcuts placeholder with the default chord and disabled action
   expect(screen.getByRole<HTMLButtonElement>('button', { name: copy.shortcuts.reset }).disabled).toBe(true)
 })
 
-it('renders the Privacy statements without interactive controls', () => {
+it('renders every Privacy statement without a control that claims to change it', () => {
   render(<PrivacyPane />)
   expectHeading(copy.privacy.title, copy.privacy.description, copy.privacy.badge, copy.privacy.foot)
-  for (const statement of copy.privacy.statements) {
-    expect(screen.getByText(statement.title)).toBeTruthy()
-    expect(screen.getByText(statement.body)).toBeTruthy()
+  for (const section of [
+    { title: copy.privacy.leavesTitle, statements: copy.privacy.leaves },
+    { title: copy.privacy.diskTitle, statements: copy.privacy.disk },
+    { title: copy.privacy.switchesTitle, statements: copy.privacy.switches },
+  ]) {
+    expect(screen.getByRole('heading', { name: section.title })).toBeTruthy()
+    for (const statement of section.statements) {
+      expect(screen.getByText(statement.title)).toBeTruthy()
+      expect(screen.getByText(statement.body)).toBeTruthy()
+    }
   }
   expect(screen.queryAllByRole('button')).toHaveLength(0)
   expect(screen.queryAllByRole('combobox')).toHaveLength(0)
+  expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+  expect(screen.queryAllByRole('switch')).toHaveLength(0)
+  expect(screen.queryAllByRole('textbox')).toHaveLength(0)
+})
+
+it('names the disk locations and the audio retention window', () => {
+  render(<PrivacyPane />)
+  const text = document.body.textContent ?? ''
+  expect(text).toContain('~/.dsh/voice/recordings/')
+  expect(text).toContain('7 days')
+  expect(text).toContain('~/.dsh/voice/history.sqlite')
 })

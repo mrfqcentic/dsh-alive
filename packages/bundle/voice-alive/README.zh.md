@@ -43,6 +43,8 @@ dsh:
 
 唯一的 `voice-alive` 配置行把 `VoiceAliveService` 挂载为 `ctx.voiceAlive`，并提供面板文档所启动的客户端配置行。[插件包](../../interaction/voice-alive/README.zh.md)拥有这两半以及面板构建。
 
+该层还按 id 禁用 `otel`、`session-telemetry-otel`、`desktop-product-telemetry` 与 `product-analytics` 配置行。本分支不包含遥测，因此即使 `dsh-base` 与 `dsh-web-app` 插入了这些行，它们也不会启动 fiber。后续层仍可定位相同 id：与所有配置行一样，最后一次写入生效。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -55,7 +57,7 @@ dsh:
 
 | 源码 | 职责 |
 |---|---|
-| [`cordis.patch.yml`](cordis.patch.yml) | 唯一插入的 `voice-alive` 配置行 |
+| [`cordis.patch.yml`](cordis.patch.yml) | 插入的 `voice-alive` 配置行和已禁用的遥测配置行 |
 | [`src/index.ts`](src/index.ts) | 模块占位；该层由 patch 文档承载 |
 | [`package.json`](package.json) | `dsh.bundle.patch` 声明与插件依赖 |
 

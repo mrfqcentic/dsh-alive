@@ -9,21 +9,24 @@ export interface DesktopUpdateScheduleConfig {
   readonly intervalMs: number
   readonly maxBackoffMs: number
   readonly jitter: number
+  /** Whether an automatic caller may start a check or arm the next one; false leaves checks manual. */
+  readonly autoCheck: boolean
 }
 
 /**
  * Resolve ordinary-update polling settings without changing mandatory-policy scheduling.
  * @param env - Desktop process environment.
- * @returns Validated durations and fractional jitter.
+ * @param autoCheck - Shell preference; false disables every automatic caller and timer.
+ * @returns Validated durations, fractional jitter, and the automatic-check switch.
  */
-export function resolveDesktopUpdateScheduleConfig(env: NodeJS.ProcessEnv): DesktopUpdateScheduleConfig {
+export function resolveDesktopUpdateScheduleConfig(env: NodeJS.ProcessEnv, autoCheck = true): DesktopUpdateScheduleConfig {
   const intervalMs = resolveDurationMs(env, 'DSH_DESKTOP_UPDATE_CHECK_INTERVAL_MS', 600_000)
   const maxBackoffMs = resolveDurationMs(env, 'DSH_DESKTOP_UPDATE_CHECK_MAX_BACKOFF_MS', Math.max(intervalMs, 3_600_000))
   const jitter = Number(env.DSH_DESKTOP_UPDATE_CHECK_JITTER ?? 0.2)
   if (!Number.isFinite(jitter) || jitter < 0 || jitter > 1 || maxBackoffMs < intervalMs) {
     throw new Error('desktop update: check jitter must be in [0, 1] and max backoff must cover the check interval')
   }
-  return { intervalMs, maxBackoffMs, jitter }
+  return { intervalMs, maxBackoffMs, jitter, autoCheck }
 }
 
 /** One completion-based deadline shared by periodic, foreground, resume, and explicit checks. */
@@ -58,6 +61,7 @@ export class DesktopUpdateSchedule {
    */
   async check(manual = false, force = manual): Promise<DesktopUpdateState> {
     if (this.disposed) throw new Error('desktop update: polling is disposed')
+    if (!force && !this.config.autoCheck) return this.updates.state
     if (this.pending !== undefined && !manual) return this.pending
     if (!force && this.now() < this.nextCheck) return this.updates.state
     clearTimeout(this.timer)
@@ -91,7 +95,7 @@ export class DesktopUpdateSchedule {
   }
 
   private schedule(failed: boolean): void {
-    if (this.disposed) return
+    if (this.disposed || !this.config.autoCheck) return
     const { intervalMs, maxBackoffMs, jitter } = this.config
     this.delay = failed ? Math.min(maxBackoffMs, this.delay * 2) : intervalMs
     const lower = Math.max(1_000, this.delay * (1 - jitter))
