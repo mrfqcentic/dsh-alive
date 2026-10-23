@@ -12,7 +12,8 @@
     "src/index.ts",
     "src/binding",
     "src/conductor",
-    "src/engine"
+    "src/engine",
+    "src/models/host"
   ],
   "references": [
     {

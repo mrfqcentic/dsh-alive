@@ -8,6 +8,7 @@
 
 import { Service, type Context, type Fiber } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-session-controller'
+import type {} from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-storage-domain'
@@ -16,6 +17,8 @@ import { createVoiceBindingDeps } from './binding/harness.ts'
 import { createVoiceBinding } from './binding/index.ts'
 import type { VoiceBinding } from './binding/types.ts'
 import { VoiceConductor } from './conductor/tools.ts'
+import { ModelStoreError, createModelStore, voiceModelsRoot } from './models/host/index.ts'
+import type { ModelStore } from './models/host/index.ts'
 
 export {
   CONDUCTOR_ERROR_CODES,
@@ -65,6 +68,32 @@ export type {
   SupervisorErrorCode,
   SupervisorOptions,
 } from './engine/supervisor.ts'
+export {
+  MODEL_CATALOG,
+  ModelStoreError,
+  SUPPORTED_PLATFORM,
+  catalogEntry,
+  configureSupervisor,
+  createModelStore,
+  modelBytes,
+  requireSelection,
+  voiceModelsRoot,
+} from './models/host/index.ts'
+export type {
+  AsrCatalogEngine,
+  ModelFailure,
+  ModelFailureCode,
+  ModelFile,
+  ModelId,
+  ModelKind,
+  ModelReadiness,
+  ModelRecord,
+  ModelState,
+  ModelStore,
+  ModelStoreOptions,
+  ModelView,
+  SupervisorPort,
+} from './models/host/index.ts'
 export { createVoiceBinding } from './binding/index.ts'
 export type {
   BindingDeps,
@@ -100,6 +129,7 @@ export class VoiceAliveService extends Service {
   readonly conductor: Fiber & PromiseLike<Fiber>
 
   private voiceBinding: VoiceBinding | undefined
+  private modelStore: ModelStore | undefined
 
   /**
    * Register the service as `ctx.voiceAlive` and mount its conductor tools.
@@ -121,6 +151,27 @@ export class VoiceAliveService extends Service {
       throw new Error('voice binding is not installed: the host storage, workspace, and session services are absent')
     }
     return this.voiceBinding
+  }
+
+  /**
+   * The profile's model catalog store.
+   *
+   * Created on first read so a profile without one never pays for it. The
+   * caller that serves model state awaits `initialize()` once before the first
+   * snapshot, and the supervisor gate awaits it before configuring an engine.
+   * @returns the single store for this profile.
+   * @throws {ModelStoreError} when the process was not launched by a dsh profile.
+   */
+  get models(): ModelStore {
+    if (this.modelStore === undefined) {
+      const profile = this.ctx.get('profileContext')
+      if (profile === undefined) {
+        throw new ModelStoreError('state',
+          'the voice model store needs a dsh profile: profileContext is absent')
+      }
+      this.modelStore = createModelStore({ root: voiceModelsRoot(profile.home) })
+    }
+    return this.modelStore
   }
 
   /** Install the binding and restore the stored session without failing activation on it. */
