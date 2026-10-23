@@ -1,0 +1,145 @@
+/* Panel surface. The 320×440 window is the whole panel: a glass pane with a
+   132px orb stage and two icon controls. No visible copy lives here.
+   The root is the drag region; `.noDrag` opts every interactive element out. */
+
+/* The shared sheets paint an opaque page background for the design pages and
+   drift the aurora forever. The panel document must stay clear (the window is
+   transparent) and the orb is its only looping animation. Both rules are
+   scoped to the panel document marker so the Web shell is untouched. */
+:global(html[data-dsh-voice-panel]),
+:global(html[data-dsh-voice-panel] body) {
+  background: transparent;
+}
+:global(html[data-dsh-voice-panel] body::before) {
+  animation: none;
+}
+
+.surface {
+  /* Panel-local size token; the design system has no stage-size token. */
+  --stage-size: 132px;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  border: 1px solid var(--glass-stroke);
+  border-radius: var(--r-xl);
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.045) 48%, rgba(255, 255, 255, 0.015));
+  backdrop-filter: blur(var(--blur)) saturate(175%) brightness(1.08);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(175%) brightness(1.08);
+  box-shadow:
+    var(--glass-shadow),
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.24);
+  color: var(--text);
+  user-select: none;
+  -webkit-app-region: drag;
+  animation: panel-in var(--dur-3) var(--ease-out);
+  transition: border-color var(--dur-3) var(--ease-out), box-shadow var(--dur-3) var(--ease-out);
+}
+
+/* Programmatic focus (opening the panel) must not paint a ring; visible focus
+   stays on the controls. */
+.surface:focus { outline: none; }
+
+/* Muted is visibly quieter: dimmer edge, dimmer icons, a smaller halo. */
+.surface[data-muted='true'] {
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+.surface[data-muted='true'] .iconButton { color: var(--text-3); }
+.surface[data-muted='true'] .halo { opacity: 0.16; transform: scale(0.92); }
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: var(--s-4) var(--s-4) 0;
+}
+
+.grip {
+  width: 30px;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.actions { display: flex; gap: var(--s-1); }
+
+.iconButton {
+  display: grid;
+  place-items: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition:
+    background var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
+}
+.iconButton:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--glass-stroke);
+  color: var(--text);
+}
+.iconButton:active { transform: translateY(1px); }
+.iconButton:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.iconButton svg { width: 16px; height: 16px; }
+
+.stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+}
+
+.halo {
+  position: absolute;
+  width: calc(var(--stage-size) * 1.16);
+  height: calc(var(--stage-size) * 1.16);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.24), transparent 68%);
+  filter: blur(18px);
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity var(--dur-3) var(--ease-out), transform var(--dur-3) var(--ease-out);
+}
+
+.orbButton {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--stage-size);
+  height: var(--stage-size);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+.orbButton:focus-visible { outline: 2px solid var(--focus); outline-offset: 8px; }
+.orbButton canvas { display: block; width: 100%; height: 100%; }
+
+.noDrag { -webkit-app-region: no-drag; }
+
+@keyframes panel-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surface { animation: none; }
+  .iconButton,
+  .halo { transition: none; }
+}

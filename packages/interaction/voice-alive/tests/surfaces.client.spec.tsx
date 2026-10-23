@@ -14,15 +14,27 @@ import {
 } from '../src/client/surfaces.ts'
 
 const mounted: Array<{ host: HTMLElement; root: Root }> = []
+const originalGetContext = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'getContext')
 
-beforeEach(() => { vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true) })
+beforeEach(() => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  // jsdom has no canvas backend; the panel's real orb tolerates a null context.
+  Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+    configurable: true,
+    value: vi.fn(() => null),
+  })
+})
 
 afterEach(async () => {
   for (const { host, root } of mounted.splice(0)) {
     await act(async () => { root.unmount() })
     host.remove()
   }
+  if (originalGetContext !== undefined) {
+    Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', originalGetContext)
+  }
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 async function renderSurface(surface: SurfaceId): Promise<HTMLElement> {
@@ -51,14 +63,6 @@ it('maps every surface id to a distinct component', () => {
   expect(new Set(components).size).toBe(SURFACE_IDS.length)
 })
 
-it('renders the panel placeholder naming its surface', async () => {
-  const host = await renderSurface('panel')
-  const placeholder = host.querySelector('[data-voice-surface-stub]')
-  expect(placeholder).not.toBeNull()
-  expect(placeholder?.getAttribute('data-voice-surface')).toBe('panel')
-  expect(placeholder?.textContent).toContain('panel')
-})
-
 it('renders the settings surface instead of a placeholder', async () => {
   const host = await renderSurface('settings')
   expect(host.querySelector('[data-voice-surface="settings"]')).not.toBeNull()
@@ -70,4 +74,11 @@ it('renders the history window for the history surface', async () => {
   expect(host.querySelector('[data-voice-surface="history"]')).not.toBeNull()
   expect(host.querySelector('[data-voice-surface-stub]')).toBeNull()
   expect(host.querySelector('.voice-history-window')).not.toBeNull()
+})
+
+it('renders the panel surface instead of a placeholder', async () => {
+  const host = await renderSurface('panel')
+  expect(host.querySelector('[data-voice-surface-stub]')).toBeNull()
+  expect(host.querySelector('[data-voice-surface="panel"]')).not.toBeNull()
+  expect(host.querySelector('canvas')).not.toBeNull()
 })
