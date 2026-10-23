@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Add the voice panel row to a profile built on `dsh-base`. The layer inserts one dual-face row: a Host `voiceAlive` service namespace and a browser client that renders only inside the panel document. No shipped profile selects the layer yet; the Desktop fork adds it in its own profile patch. The insert is additive, so it composes with any base-backed tree. The panel document itself ships in the plugin package under `dist/panel/`.
+Add the voice panel row to a profile built on `dsh-base`. The layer inserts one dual-face row: a Host `voiceAlive` service namespace and a browser client that renders only inside the panel document. The shipped `web` profile template selects the layer after `@deepseek-ai/dsh-web-app`, and Desktop initialises its profile from that template. The insert is additive, so it composes with any base-backed tree. The panel document itself ships in the plugin package under `dist/panel/`.
 
 ## Table of Contents
 
@@ -29,7 +29,7 @@ Add the package after `@deepseek-ai/dsh-base` in a profile's `dsh.profile.bundle
 
 ### Install into a profile
 
-A profile composes the layer by naming the package in its ordered bundle list. The shipped templates do not include it, so the fork's profile patch is what selects it for the Desktop application; until that patch lands, only an explicitly composed profile mounts the row.
+A profile composes the layer by naming the package in its ordered bundle list. The shipped `web` template already includes it after `@deepseek-ai/dsh-web-app`, so a fresh Web or Desktop profile mounts the row; an explicitly composed profile adds it the same way.
 
 ```yaml
 dsh:
@@ -41,7 +41,7 @@ dsh:
 
 ### What you get
 
-The single `voice-alive` row mounts `VoiceAliveService` as `ctx.voiceAlive` and contributes the client row that the panel document boots. The [plugin package](../../experimental/voice-alive/README.md) owns both halves and the panel build.
+The single `voice-alive` row mounts `VoiceAliveService` as `ctx.voiceAlive` and contributes the client row that the panel document boots. The [plugin package](../../interaction/voice-alive/README.md) owns both halves and the panel build.
 
 -----
 
@@ -69,7 +69,7 @@ The layer is one insert list in `cordis.patch.yml`. Row ids must stay stable: a 
 - [Bundle group](../README.md) — the installable patch layers and their composition order.
 - [Base layer](../base/README.md) — the shared core this layer composes over.
 - [Web application layer](../web-app/README.md) — the surface that serves the main client roster.
-- [Voice plugin package](../../experimental/voice-alive/README.md) — the Host service, client entry, and panel document.
+- [Voice plugin package](../../interaction/voice-alive/README.md) — the Host service, client entry, and panel document.
 - [Application boot](../../boot/app-boot/README.md) — how `dsh.profile.bundles` layers become entries.
 
 -----
@@ -87,8 +87,7 @@ The layer contributes no prompt text; the row it mounts owns any future model-fa
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Not selected by a shipped profile** — `dsh-base`, `dsh-web-app`, and the other templates leave the layer out. The Desktop fork adds it in its profile patch.
-- **Host row is a namespace only** — conductor tools, binding, and engines arrive in later tickets; the bundle mounts no voice capability yet.
+- **Host row is a namespace only** — `VoiceAliveService` carries no conductor tools, session binding, audio state, or engines, so the bundle mounts no voice capability yet.
 - **Panel route is outside this layer** — the Desktop protocol handler owns `/voice/*` and must serve the plugin package's `dist/panel/`; the Web server does not expose the panel.
 
 <a id="dev-note"></a>

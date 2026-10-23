@@ -9,7 +9,7 @@ kind: "package-bundle"
 
 ## 概述
 
-把语音面板配置行加入基于 `dsh-base` 的 profile。该层插入一条双面配置行：Host 的 `voiceAlive` 服务命名空间，以及仅在面板文档内渲染的浏览器客户端。尚无随包 profile 选择该层；Desktop fork 会在自己的 profile patch 中加入它。插入是增量的，因此可与任何基于 base 的配置树组合。面板文档本身随插件包发布在 `dist/panel/` 下。
+把语音面板配置行加入基于 `dsh-base` 的 profile。该层插入一条双面配置行：Host 的 `voiceAlive` 服务命名空间，以及仅在面板文档内渲染的浏览器客户端。随包的 `web` profile 模板会在 `@deepseek-ai/dsh-web-app` 之后选择该层，Desktop 也从该模板初始化其 profile。插入是增量的，因此可与任何基于 base 的配置树组合。面板文档本身随插件包发布在 `dist/panel/` 下。
 
 ## 目录
 
@@ -29,7 +29,7 @@ kind: "package-bundle"
 
 ### 安装到 profile
 
-profile 通过在其有序 Bundle 列表中点名该包来组合此层。随包模板不包含它，因此是 fork 的 profile patch 为 Desktop 应用选择它；在该 patch 落地之前，只有显式组合的 profile 会挂载该配置行。
+profile 通过在其有序 Bundle 列表中点名该包来组合此层。随包的 `web` 模板已将其放在 `@deepseek-ai/dsh-web-app` 之后，因此全新的 Web 或 Desktop profile 会挂载该配置行；显式组合的 profile 也以同样方式加入它。
 
 ```yaml
 dsh:
@@ -41,7 +41,7 @@ dsh:
 
 ### 你将获得
 
-唯一的 `voice-alive` 配置行把 `VoiceAliveService` 挂载为 `ctx.voiceAlive`，并提供面板文档所启动的客户端配置行。[插件包](../../experimental/voice-alive/README.zh.md)拥有这两半以及面板构建。
+唯一的 `voice-alive` 配置行把 `VoiceAliveService` 挂载为 `ctx.voiceAlive`，并提供面板文档所启动的客户端配置行。[插件包](../../interaction/voice-alive/README.zh.md)拥有这两半以及面板构建。
 
 -----
 
@@ -69,7 +69,7 @@ dsh:
 - [Bundle 组](../README.zh.md) — 可安装的 patch 层及其组合顺序。
 - [Base 层](../base/README.zh.md) — 该层所组合的共享核心。
 - [Web 应用层](../web-app/README.zh.md) — 提供主客户端名册的界面。
-- [语音插件包](../../experimental/voice-alive/README.zh.md) — Host 服务、客户端入口与面板文档。
+- [语音插件包](../../interaction/voice-alive/README.zh.md) — Host 服务、客户端入口与面板文档。
 - [应用启动](../../boot/app-boot/README.zh.md) — `dsh.profile.bundles` 各层如何变成条目。
 
 -----
@@ -87,8 +87,7 @@ dsh:
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **未被随包 profile 选择** — `dsh-base`、`dsh-web-app` 及其他模板都不包含该层。Desktop fork 会在其 profile patch 中加入它。
-- **Host 配置行只是命名空间** — conductor 工具、绑定与引擎由后续工单提供；该 Bundle 尚未挂载任何语音能力。
+- **Host 配置行只是命名空间** — `VoiceAliveService` 不包含 conductor 工具、会话绑定、音频状态或引擎，因此该 Bundle 尚未挂载任何语音能力。
 - **面板路由不在该层** — Desktop 协议处理器拥有 `/voice/*`，必须提供插件包的 `dist/panel/`；Web 服务器不暴露面板。
 
 <a id="dev-note"></a>
