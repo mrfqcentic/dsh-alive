@@ -7,6 +7,8 @@ import type { VoicePanelApi, VoicePanelState, VoiceSurfaceId } from './voice-pan
 const VOICE_PANEL_CHANNEL = 'dsh-voice:panel-state'
 /** Mirrors the surface channel in `voice-panel.ts`. */
 const VOICE_SURFACE_CHANNEL = 'dsh-voice:open-surface'
+/** Mirrors the close channel in `voice-panel.ts`. */
+const VOICE_CLOSE_CHANNEL = 'dsh-voice:close'
 
 const api: VoicePanelApi = {
   protocolVersion: 1,
@@ -17,6 +19,7 @@ const api: VoicePanelApi = {
     return () => { ipcRenderer.off(VOICE_PANEL_CHANNEL, handle) }
   },
   openSurface: (surface: VoiceSurfaceId) => ipcRenderer.invoke(VOICE_SURFACE_CHANNEL, surface) as Promise<void>,
+  close: () => ipcRenderer.invoke(VOICE_CLOSE_CHANNEL) as Promise<void>,
 }
 
 contextBridge.exposeInMainWorld('dshVoicePanel', api)

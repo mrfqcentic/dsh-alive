@@ -46,3 +46,12 @@ it('forwards state and subscriptions through the panel channel', async () => {
   stop()
   expect(electron.off).toHaveBeenCalledWith('dsh-voice:panel-state', handler)
 })
+
+it('closes the sender window through the typed close channel', async () => {
+  await import('../src/preload-voice.ts')
+  const api = electron.exposed.api
+  if (api === undefined) throw new Error('the preload exposed no bridge')
+  electron.invoke.mockResolvedValueOnce(undefined)
+  await expect(api.close()).resolves.toBeUndefined()
+  expect(electron.invoke).toHaveBeenCalledWith('dsh-voice:close')
+})
