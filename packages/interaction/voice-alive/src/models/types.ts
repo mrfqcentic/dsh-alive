@@ -141,6 +141,14 @@ export interface ModelBlocked {
 /** Whether the voice layer may run, and which entries satisfy it. */
 export type ModelReadiness = ModelReady | ModelBlocked
 
+/** One complete pane snapshot: every catalog row and the required-set readiness. */
+export interface ModelSnapshot {
+  /** Every catalog entry, in catalog order. */
+  readonly rows: readonly ModelView[]
+  /** Whether the required set is verified, and which entries satisfy it. */
+  readonly readiness: ModelReadiness
+}
+
 /**
  * Verified model directories handed to the supervisor's `configure`.
  *

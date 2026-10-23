@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import VoiceAliveService from '../src/index.ts'
+import VoiceAliveService, { MODELS_ACTION_PATH, MODELS_EVENTS_PATH, MODELS_SNAPSHOT_PATH } from '../src/index.ts'
 import { createVoiceBindingDeps, VOICE_WORKSPACE_TITLE, voiceWorkspaceDirectory } from '../src/binding/harness.ts'
 import type { BindingRecord } from '../src/binding/types.ts'
 
@@ -30,6 +30,8 @@ interface Fakes {
   readonly archived: string[]
   readonly createWorkspace: ReturnType<typeof vi.fn>
   readonly createSession: ReturnType<typeof vi.fn>
+  /** Fetch routes the voice row registers with Connection, in registration order. */
+  readonly routes: Array<{ readonly path: string; readonly fetch: (request: Request) => Promise<Response> }>
 }
 
 async function fakes(options: { profile?: boolean } = {}): Promise<Fakes> {
@@ -82,8 +84,17 @@ async function fakes(options: { profile?: boolean } = {}): Promise<Fakes> {
     stat: async (id: string) => (stored.has(id) ? { header: { id } } : undefined),
   } as never)
   ctx.provide('sessionController', { create: createSession } as never)
+  const routes: Array<{ readonly path: string; readonly fetch: (request: Request) => Promise<Response> }> = []
+  ctx.provide('connection', {
+    fetch: {
+      register: (route: { readonly path: string; readonly fetch: (request: Request) => Promise<Response> }) => {
+        routes.push(route)
+        return async () => { routes.splice(routes.indexOf(route), 1) }
+      },
+    },
+  } as never)
 
-  return { ctx, home, table, entities, live, stored, archived, createWorkspace, createSession }
+  return { ctx, home, table, entities, live, stored, archived, createWorkspace, createSession, routes }
 }
 
 describe('host wiring', () => {
@@ -172,6 +183,28 @@ describe('service installation', () => {
 
     expect(f.ctx.voiceAlive.binding.state).toBe('unbound')
     expect(warn).toHaveBeenCalledWith('voice binding: startup restore failed: Error: no agent factory')
+  })
+
+  it('claims the model routes with Connection and releases them with the row', async () => {
+    const f = await fakes()
+    await f.ctx.plugin(VoiceAliveService)
+    await f.ctx.voiceAlive.modelEndpoints
+
+    expect(f.routes.map(route => route.path)).toEqual([
+      MODELS_SNAPSHOT_PATH,
+      MODELS_EVENTS_PATH,
+      MODELS_ACTION_PATH,
+    ])
+
+    // The snapshot route resolves the lazy profile store the row owns.
+    const snapshot = await f.routes[0]!.fetch(new Request(`http://127.0.0.1${MODELS_SNAPSHOT_PATH}`))
+    expect(snapshot.status).toBe(200)
+    const body: unknown = await snapshot.json()
+    if (typeof body !== 'object' || body === null || !('rows' in body)) throw new Error('the snapshot has no rows')
+    expect(Array.isArray(body.rows)).toBe(true)
+
+    await f.ctx.fiber.dispose()
+    expect(f.routes).toHaveLength(0)
   })
 
   it('refuses the binding before the host services are active', async () => {

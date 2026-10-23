@@ -18,9 +18,17 @@ export function voiceModelsRoot(home: string): string {
 }
 
 export { MODEL_CATALOG, catalogEntry, modelBytes } from '../catalog.ts'
+export {
+  MODELS_ACTION_PATH,
+  MODELS_EVENTS_PATH,
+  MODELS_SNAPSHOT_PATH,
+  modelSnapshot,
+  registerModelRoutes,
+} from './endpoint.ts'
 export { configureSupervisor, requireSelection } from './gate.ts'
 export { ModelStoreError } from './errors.ts'
 export { SUPPORTED_PLATFORM, createModelStore } from './store.ts'
+export type { ModelActionKind } from './endpoint.ts'
 export type {
   AsrCatalogEngine,
   ModelFailure,
@@ -31,6 +39,7 @@ export type {
   ModelReadiness,
   ModelRecord,
   ModelSelection,
+  ModelSnapshot,
   ModelState,
   ModelView,
 } from '../types.ts'
