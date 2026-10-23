@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { globSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { DESKTOP_HOST_RUNTIME_FILES, DESKTOP_PACKAGES_DIR } from '../src/core-package-set.ts'
 import {
   assertDesktopHostPackageFiles,
@@ -14,6 +14,38 @@ import {
 function packed(name: string, manifest: Record<string, unknown> = {}): PackedDesktopPackage {
   return { tarball: `${name}.tgz`, manifest: { name, version: '1.0.0', ...manifest } }
 }
+
+const REPOSITORY_ROOT = resolve(import.meta.dirname, '../../..')
+const WORKSPACE_MANIFEST_GLOBS = [
+  'apps/*/package.json',
+  'packages/*/*/package.json',
+  'vendor/*/package.json',
+  'native/system/packages/*/package.json',
+] as const
+
+/** Every workspace manifest as a packed input, so the closure follows the shipped dependency edges. */
+function workspacePackages(): Map<string, PackedDesktopPackage> {
+  const packages = new Map<string, PackedDesktopPackage>()
+  for (const path of globSync(WORKSPACE_MANIFEST_GLOBS, { cwd: REPOSITORY_ROOT })) {
+    const manifest = JSON.parse(readFileSync(resolve(REPOSITORY_ROOT, path), 'utf8')) as Record<string, unknown>
+    if (typeof manifest.name !== 'string') continue
+    packages.set(manifest.name, { tarball: `${manifest.name}.tgz`, manifest })
+  }
+  return packages
+}
+
+describe('voice panel package-set closure', () => {
+  it('reaches the panel document package from the real installation manifests', () => {
+    const selected = selectDesktopPackageClosure(workspacePackages(), { platform: 'darwin', arch: 'arm64' })
+    const names = selected.map(entry => entry.manifest.name)
+    expect(names).toContain('@deepseek-ai/dsh-voice-alive-bundle')
+    expect(names).toContain('@deepseek-ai/dsh-voice-alive')
+    // The route serves the packaged panel directory only when the tarball carries it.
+    const plugin = selected.find(entry => entry.manifest.name === '@deepseek-ai/dsh-voice-alive')
+    expect(plugin?.manifest.files).toContain('dist/panel')
+    expect(plugin?.manifest.exports).toMatchObject({ './panel/*': './dist/panel/*' })
+  })
+})
 
 describe('desktop package-set selection', () => {
   afterEach(() => {
