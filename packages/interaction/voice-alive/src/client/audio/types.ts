@@ -72,6 +72,14 @@ export interface CaptureOptions {
   deviceId?: string
   /** Decision applied to every closed segment; absent uses the energy gate. */
   gate?: WordGate
+  /**
+   * Mute one 16 kHz frame before the segmenter sees it; true replaces it with
+   * silence. Muting rather than dropping keeps the detector's frame clock and
+   * noise floor calibrated while the echo guard masks playback.
+   * @param frame - one 320-sample frame of captured PCM.
+   * @returns true to mute the frame, false to segment it.
+   */
+  frameGate?: (frame: Int16Array) => boolean
 }
 
 /**
