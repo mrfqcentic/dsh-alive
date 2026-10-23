@@ -1,7 +1,7 @@
 /** Capture controller: fake Web Audio graph, framing, resampling, mute, devices, errors, and cleanup. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CaptureError, createCapture } from '../src/client/audio/capture.ts'
-import type { CaptureController, SpeechSegment, WordGate } from '../src/client/audio/types.ts'
+import type { CaptureController, CaptureOptions, SpeechSegment, WordGate } from '../src/client/audio/types.ts'
 import { SAMPLE_RATE } from '../src/client/audio/vad.ts'
 
 /** One fake media stream track that records its ended listeners and stop calls. */
@@ -374,6 +374,15 @@ describe('acquisition', () => {
     expect((secondAudio?.audio as MediaTrackConstraints).deviceId).toEqual({ exact: 'mic-b' })
     expect(second.env.getUserMedia).toHaveBeenCalledTimes(1)
     second.controller.stop()
+  })
+
+  it('accepts the exported CaptureOptions contract', async () => {
+    installEnvironment()
+    const options: CaptureOptions = { deviceId: 'mic-a', gate: { accept: () => true } }
+    const controller = createCapture(options)
+    await controller.start()
+    expect(controller.state).toBe('running')
+    controller.stop()
   })
 
   it('resumes a suspended audio context before reporting running', async () => {
