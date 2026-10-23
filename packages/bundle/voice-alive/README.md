@@ -43,6 +43,8 @@ dsh:
 
 The single `voice-alive` row mounts `VoiceAliveService` as `ctx.voiceAlive` and contributes the client row that the panel document boots. The [plugin package](../../interaction/voice-alive/README.md) owns both halves and the panel build.
 
+The layer also disables the `otel`, `session-telemetry-otel`, `desktop-product-telemetry`, and `product-analytics` rows by id. This fork carries no telemetry, so those rows never start a fiber even though `dsh-base` and `dsh-web-app` insert them. A later layer can still target the same ids, because the last write wins as for every row.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -55,7 +57,7 @@ The layer is one insert list in `cordis.patch.yml`. Row ids must stay stable: a 
 
 | Source | Responsibility |
 |---|---|
-| [`cordis.patch.yml`](cordis.patch.yml) | The one inserted `voice-alive` row |
+| [`cordis.patch.yml`](cordis.patch.yml) | The inserted `voice-alive` row and the disabled telemetry rows |
 | [`src/index.ts`](src/index.ts) | Module placeholder; the patch document carries the layer |
 | [`package.json`](package.json) | `dsh.bundle.patch` declaration and the plugin dependency |
 
