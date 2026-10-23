@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与专用浏览器面板。同一条双面配置行在 Host 中挂载 `ctx.voiceAlive`，并提供仅在面板文档内渲染的客户端条目。该客户端在主聊天界面保持惰性。面板文档以语音专用名册启动常规客户端内核，名册由包自身的 `dist/panel/` 提供。面板渲染单色 Orb 与其两个窗口控件；settings 与 history 作为同一文档的独立界面打开，由 `?surface=` 选择。Host 半边还暴露两个本地语音引擎，各自运行在包内单一 `./worker` 条目之后的 `ELECTRON_RUN_AS_NODE` 子进程中：`createAsrEngine` 用 Whisper 或 Parakeet 转写，`createTtsEngine` 从 Kokoro 流式输出按句切分的 24 kHz 单声道 WAV 分块。Bundle 层把这条配置行组合到 `dsh-base` 之上。
+为随附的 Web 与 Desktop profile 提供语音面板的 Host 服务与专用浏览器面板。同一条双面配置行在 Host 中挂载 `ctx.voiceAlive`，并提供仅在面板文档内渲染的客户端条目。该客户端在主聊天界面保持惰性。面板文档以语音专用名册启动常规客户端内核，名册由包自身的 `dist/panel/` 提供。面板渲染单色 Orb 与其两个窗口控件；settings 与 history 作为同一文档的独立界面打开，由 `?surface=` 选择。Host 半边还暴露两个本地语音引擎，各自运行在包内单一 `./worker` 条目之后的 `ELECTRON_RUN_AS_NODE` 子进程中：`createAsrEngine` 用 Whisper 或 Parakeet 转写，`createTtsEngine` 从 Kokoro 流式输出按句切分的 24 kHz 单声道 WAV 分块。Host 配置行还注册四个 conductor 工具，用于列出工作区并把面板绑定到新建或恢复的会话。Bundle 层把这条配置行组合到 `dsh-base` 之上。
 
 ## 目录
 
@@ -41,6 +41,12 @@ kind: "package-reference"
 ```
 
 Host 半边注册 `ctx.voiceAlive`。浏览器半边仅在文档的 `<html>` 带有 `data-dsh-voice-panel` 时激活，而面板文档正是如此。
+
+### Conductor 工具
+
+Host 配置行在 `ctx.tools` 上注册四个普通工具。`voice_list_workspaces` 报告每个工作区的 id、标题、路径与会话数。`voice_open_workspace` 把面板绑定到工作区中最近一个未归档会话，或新建一个；`voice_new_session` 新建并绑定一个全新会话；`voice_resume_session` 绑定指定会话或最近的会话。每个绑定工具按精确标题、目录路径或路径末段解析工作区；名称只部分匹配或对应多个工作区时返回候选，而不是自行选择。失败是类型化且明确的：未知工作区、缺少会话、已归档会话与 subagent 会话各自返回一个错误码，且不改变绑定。
+
+已完成的绑定通过 `VoiceBindingTarget` 进入持久化存储；最后一次被接受的绑定可从 `ctx.voiceConductor.currentBinding` 读取。
 
 ### ASR 引擎
 
@@ -85,6 +91,7 @@ await engine.speak({ id: 'turn-1', text: 'Hello there. How are you?' }, chunk =>
 | 源码 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | 注册为 `ctx.voiceAlive` 的 Host `VoiceAliveService`，以及导出的 ASR 与 TTS 接缝 |
+| [`src/conductor/tools.ts`](src/conductor/tools.ts) | Host conductor 服务：四个工作区与会话工具、它们的类型化结果，以及绑定接收端 |
 | [`src/engine/asr.ts`](src/engine/asr.ts) | Host ASR 引擎：启动、握手、串行队列、空闲关闭与类型化失败 |
 | [`src/engine/asr-worker.ts`](src/engine/asr-worker.ts) | ASR Worker：stdin 与 fd 3 上的 JSON 行协议、sherpa-onnx Whisper/Parakeet |
 | [`src/engine/types.ts`](src/engine/types.ts) | ASR 请求/结果/引擎契约与 worker 帧 |
@@ -125,17 +132,25 @@ await engine.speak({ id: 'turn-1', text: 'Hello there. How are you?' }, chunk =>
 <a id="model-experience"></a>
 ## 模型体验
 
-无，因为该配置行只注册 Host 服务命名空间与浏览器面板挂载，不添加工具、提示词段落或 Session 事件。
+### Conductor 工具
+
+#### What the model sees
+
+只要该配置行已加载，模型就会看到 `voice_list_workspaces`、`voice_open_workspace`、`voice_new_session` 与 `voice_resume_session` 的 schema。每个绑定结果携带工作区的 id、标题、路径与会话数，以及会话的 id、标题、最后活动时间与归档标记，全部来自注册表。工作区名称只部分匹配或对应多个工作区时返回候选，而不是执行绑定。
+
+#### Token effect
+
+对于加载了该配置行的部署，每个请求都承担固定的 schema 成本。绑定结果会留在调用会话的历史中，直到压缩。
 
 #### KV Cache effect
 
-该配置行不改变请求组装，因此没有任何提示词段落或缓存边界依赖它。
+在工具定义不变时前缀稳定。加载或卸载该配置行会改变工具块，并可能从第一个变化的 schema token 起使复用失效。
 
 ## 已知限制与后续工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **引擎尚未接入守护进程** — `VoiceAliveService` 仍无 conductor 工具、会话绑定或音频状态；`createAsrEngine` 与 `createTtsEngine` 已导出，供工单 13 的监督器拥有。
+- **绑定尚未持久化** — conductor 通过 `VoiceBindingTarget` 记录绑定，但尚无存储实现该接收端，因此 `ctx.voiceConductor.currentBinding` 会在重启后丢失；音频状态机也未在此接入。
 - **不捆绑权重** — 两个引擎都读取调用方提供的模型目录；下载并校验 Whisper、Parakeet 或 Kokoro 权重属于工单 19 的职责，因此在该目录存在之前 `load` 会拒绝。
 - **占位 settings 面板** — 五个标签页可以切换，但每个面板都是如实的占位实现；音频、快捷键、模型、工作区与隐私控件在后续波次中接入，其中模型、工作区与隐私属于工单 19–21。
 - **Fixture 历史** — 历史窗口通过 `createHistorySource` 列出一份固定的内存 Fixture；持久化存储将在工单 22 中替换该工厂。

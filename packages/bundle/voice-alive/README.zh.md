@@ -77,17 +77,17 @@ dsh:
 <a id="model-experience"></a>
 ## 模型体验
 
-无，因为该层只挂载 Host 服务命名空间与仅用于面板的浏览器客户端，不添加模型工具或提示词文本。
+间接地，通过挂载 voice-alive 配置行——它注册四个 conductor 工具。
 
 #### KV Cache effect
 
-该层不贡献提示词文本；它挂载的配置行拥有未来任何面向模型的行为。
+加载该 Bundle 会加载那条配置行，因此模型可见的工具块及其缓存边界随该行的定义变化。
 
 ## 已知限制与后续工作
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Host 配置行只是命名空间** — `VoiceAliveService` 不包含 conductor 工具、会话绑定、音频状态或引擎，因此该 Bundle 尚未挂载任何语音能力。
+- **仅含 conductor** — `VoiceAliveService` 携带四个 conductor 工具并把最后一次绑定保存在内存中；持久化绑定存储、音频状态与语音引擎不属于该层。
 - **面板路由不在该层** — Desktop 协议处理器拥有 `/voice/*`，必须提供插件包的 `dist/panel/`；Web 服务器不暴露面板。
 
 <a id="dev-note"></a>
