@@ -2884,6 +2884,16 @@ importers:
         specifier: workspace:~
         version: link:../../../vendor/cordis
 
+  packages/bundle/voice-alive:
+    dependencies:
+      '@deepseek-ai/dsh-voice-alive':
+        specifier: workspace:*
+        version: link:../../experimental/voice-alive
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+
   packages/bundle/web-app:
     dependencies:
       '@deepseek-ai/dsh-agent-instructions':
@@ -10677,6 +10687,36 @@ importers:
       '@deepseek-ai/dsh-util-values':
         specifier: workspace:*
         version: link:../../util/values
+
+  packages/experimental/voice-alive:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-app-boot':
+        specifier: workspace:*
+        version: link:../../boot/app-boot
+      '@deepseek-ai/dsh-client-modules':
+        specifier: workspace:*
+        version: link:../../client/modules
+      '@deepseek-ai/dsh-client-web':
+        specifier: workspace:*
+        version: link:../../client/web
+      '@deepseek-ai/dsh-host-webserver':
+        specifier: workspace:*
+        version: link:../../host/webserver
+      '@vitejs/plugin-react':
+        specifier: ^4.7.0
+        version: 4.7.0(supports-color@9.4.0)(vite@6.4.3(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.13)(yaml@2.9.0))
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.3.1(react@18.3.1)
+      vite:
+        specifier: ^6.4.3
+        version: 6.4.3(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.13)(yaml@2.9.0)
 
   packages/experimental/voice-input-bundle:
     dependencies:

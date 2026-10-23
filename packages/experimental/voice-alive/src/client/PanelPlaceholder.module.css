@@ -1,0 +1,16 @@
+/* Temporary panel placeholder. Monochrome only; the orb owns the real
+   surface from ticket 04 and the tokens land with it. */
+
+.panel {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+}
+
+.orb {
+  width: 148px;
+  height: 148px;
+  border-radius: 50%;
+  background: #f5f5f5;
+  opacity: 0.92;
+}
